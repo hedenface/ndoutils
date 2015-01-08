@@ -1253,9 +1253,8 @@ int ndo2db_handle_client_input(ndo2db_idi *idi, char *buf) {
 
 			idi->current_input_section = NDO2DB_INPUT_SECTION_DATA;
 
-			/* save connection info to DB */
+			/* Save connection info to DB and initialize our statements. */
 			ndo2db_db_hello(idi);
-			ndo2db_stmt_init_stmts(idi);
 		}
 
 		else if (strcmp(var, NDO_API_PROTOCOL) == 0)

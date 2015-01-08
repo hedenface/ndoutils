@@ -187,7 +187,7 @@ int ndo2db_db_deinit(ndo2db_idi *idi) {
 	for (x = 0; x < NDO2DB_NUM_DBTABLES; x++) my_free(ndo2db_db_tablenames[x]);
 
 	/* Free our object id cache. */
-	ndo2db_free_cached_object_ids(idi);
+	ndo2db_free_obj_cache(idi);
 
 	return NDO_OK;
 }
@@ -303,8 +303,11 @@ int ndo2db_db_hello(ndo2db_idi *idi) {
 	}
 	free(buf);
 
+	/* Initialize our prepared statements now that we're connected and have an
+	 * instance_id. */
+	ndo2db_stmt_init_stmts(idi);
 	/* get cached object ids... */
-	ndo2db_get_cached_object_ids(idi);
+	ndo2db_load_obj_cache(idi);
 
 	/* get latest times from various tables... */
 	ndo2db_db_get_latest_data_time(idi, ndo2db_db_tablenames[NDO2DB_DBTABLE_PROGRAMSTATUS], "status_update_time", (unsigned long *)&idi->dbinfo.latest_program_status_time);
@@ -456,9 +459,8 @@ int ndo2db_db_query(ndo2db_idi *idi, char *buf) {
 
 	/* If we're not connected, try and reconnect... */
 	if (!idi->dbinfo.connected) {
-		if (ndo2db_db_connect(idi) == NDO_ERROR) return NDO_ERROR;
+		if (ndo2db_db_connect(idi) == NDO_ERROR || !idi->dbinfo.connected) return NDO_ERROR;
 		ndo2db_db_hello(idi);
-		ndo2db_stmt_init_stmts(idi);
 	}
 
 #ifdef DEBUG_NDO2DB_QUERIES

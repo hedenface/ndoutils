@@ -381,22 +381,29 @@ int ndo2db_add_cached_object_id(ndo2db_idi *idi, int object_type,
 }
 
 
+#ifdef NDO2DB_ORIGINAL_OBJECT_HASH
+#define NDO2DB_OBJECT_HASHPRIME 1
+#else
+#define NDO2DB_OBJECT_HASHPRIME 509
+#endif
 
 int ndo2db_object_hashfunc(const char *name1, const char *name2, int hashslots) {
-	unsigned int i,result;
+	unsigned int i, result;
 
-	result=0;
+#ifdef NDO2DB_ORIGINAL_OBJECT_HASH
+	result = 0;
+#else
+	result = 0x123; /* "magic" (there may be a better seed...) */
+#endif
 	if (name1)
 		for (i=0;i<strlen(name1);i++)
-			result+=name1[i];
+			result = name1[i] + result * NDO2DB_OBJECT_HASHPRIME;
 
 	if (name2)
 		for (i=0;i<strlen(name2);i++)
-			result+=name2[i];
+			result = name2[i] + result * NDO2DB_OBJECT_HASHPRIME;
 
-	result=result%hashslots;
-
-	return result;
+	return result % hashslots;
 }
 
 
@@ -695,7 +702,7 @@ int ndo2db_handle_processdata(ndo2db_idi *idi) {
 		ndo2db_db_clear_table(idi,ndo2db_db_tablenames[NDO2DB_DBTABLE_SERVICEESCALATIONCONTACTGROUPS]);
 
 		/* flag all objects as being inactive */
-		ndo2db_set_all_objects_as_inactive(idi);
+		ndo2db_set_all_objs_inactive(idi);
 
 #ifdef BAD_IDEA
 		/* record a fake log entry to indicate that Nagios is starting - this normally occurs during the module's "blackout period" */

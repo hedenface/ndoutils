@@ -137,7 +137,7 @@ typedef struct ndo2db_input_data_info_struct{
 
 /*************** misc definitions **************/
 #define NDO2DB_INPUT_BUFFER                             1024
-#define NDO2DB_OBJECT_HASHSLOTS                         1024
+#define NDO2DB_OBJECT_HASHSLOTS                         4096
 
 /** Default table trim interval in seconds. */
 #define NDO2DB_DEFAULT_TABLE_TRIM_INTERVAL              3600

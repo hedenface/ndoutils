@@ -34,7 +34,6 @@
  * @return NDO_OK on success, an error code otherwise, usually NDO_ERROR.
  */
 int ndo2db_stmt_init_stmts(ndo2db_idi *idi);
-
 /**
  * Frees resources allocated for prepared statements.
  * @return Currently NDO_OK in all cases.
@@ -43,78 +42,23 @@ int ndo2db_stmt_free_stmts(void);
 
 
 /**
- * Fetches an existing object id from the cache or DB.
- * @param idi Input data and DB connection info.
- * @param object_type ndo2db object type code.
- * @param name1 Object name1.
- * @param name2 Object name2.
- * @param object_id Object id output.
- * @return NDO_OK with the object id in *object_id if an object was found,
- * otherwise an error code (usually NDO_ERROR) and *object_id = 0.
- */
-int ndo2db_get_obj_id(ndo2db_idi *idi, int object_type,
-		const char *name1, const char *name2, unsigned long *object_id);
-/**
- * Fetches an existing object id from the cache or DB. Inserts a new row if an
- * existing id is not found for non-empty object names.
- * @param idi Input data and DB connection info.
- * @param object_type ndo2db object type code.
- * @param name1 Object name1.
- * @param name2 Object name2.
- * @param object_id Object id output.
- * @return NDO_OK with the object id in *object_id if an object was found or
- * inserted, otherwise an error code (usually NDO_ERROR) and *object_id = 0.
- */
-int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int object_type,
-		const char *name1, const char *name2, unsigned long *object_id);
-/**
- * Fetches all objects for an instance from the DB.
+ * Fetches all known objects for an instance from the DB.
  * @param idi Input data and DB connection info.
  * @return NDO_OK on success, an error code otherwise, usually NDO_ERROR.
  * @post It is possible for the object cache to be partially populated if an
  * error occurs while processing results.
  */
-int ndo2db_get_cached_obj_ids(ndo2db_idi *idi);
-/**
- * Fetches an existing object id from the cache.
- * @param idi Input data and DB connection info.
- * @param object_type ndo2db object type code.
- * @param name1 Object name1.
- * @param name2 Object name2.
- * @param object_id Object id output.
- * @return NDO_OK with the object id in *object_id if an object was found,
- * otherwise an error code (usually NDO_ERROR) and *object_id = 0.
- */
-int ndo2db_get_cached_obj_id(ndo2db_idi *idi, int object_type,
-		const char *name1, const char *name2, unsigned long *object_id);
-/**
- * Adds an entry to the object cache.
- */
-int ndo2db_add_cached_obj_id(ndo2db_idi *idi, int object_type,
-		const char *name1, const char *name2, unsigned long object_id);
+int ndo2db_load_obj_cache(ndo2db_idi *idi);
 /**
  * Frees resources allocated for the object cache.
+ * @param idi Input data and DB connection info.
+ * @return Currently NDO_OK in all cases, there are no detectable errors.
  */
-int ndo2db_free_cached_objs(ndo2db_idi *idi);
-/**
- * Calculates an object's hash value.
- */
-int ndo2db_obj_hashfunc(const char *name1, const char *name2, int hashslots);
-/**
- * Compares two objects' hash data.
- * @return 0 if v1 == v2; +1 if v1 > v2; -1 if v1 < v2.
- */
-int ndo2db_compare_obj_hashdata(const char *v1a, const char *v1b,
-		const char *v2a, const char *v2b);
+int ndo2db_free_obj_cache(ndo2db_idi *idi);
 /**
  * Sets all objects as inactive in the DB for the current instance.
  */
-int ndo2db_set_all_obj_inactive(ndo2db_idi *idi);
-/**
- * Sets an object as active in the DB for the current instance.
- */
-int ndo2db_set_obj_active(ndo2db_idi *idi, int object_type,
-		unsigned long object_id);
+int ndo2db_set_all_objs_inactive(ndo2db_idi *idi);
 
 
 /* Statement handler functions. These are intended to function as the
