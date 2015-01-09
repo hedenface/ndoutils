@@ -60,6 +60,10 @@ int ndo2db_free_obj_cache(ndo2db_idi *idi);
  */
 int ndo2db_set_all_objs_inactive(ndo2db_idi *idi);
 
+int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int type,
+		const char *name1, const char *name2, unsigned long *object_id);
+int ndo2db_set_obj_active(ndo2db_idi *idi, int type, unsigned long id);
+
 
 /* Statement handler functions. These are intended to function as the
  * corresponding ndo2db_handle_* functions. */

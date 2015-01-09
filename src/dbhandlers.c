@@ -55,459 +55,6 @@ extern char *ndo2db_db_tablenames[NDO2DB_NUM_DBTABLES];
 
 
 /****************************************************************************/
-/* OBJECT ROUTINES                                                          */
-/****************************************************************************/
-
-int ndo2db_get_object_id(ndo2db_idi *idi, int object_type, char *n1,
-		char *n2, unsigned long *object_id) {
-	int result=NDO_OK;
-	int x = 0;
-	unsigned long cached_object_id=0L;
-	int found_object=NDO_FALSE;
-	char *name1=NULL;
-	char *name2=NULL;
-	char *buf=NULL;
-	char *buf1=NULL;
-	char *buf2=NULL;
-	char *es[2];
-
-	/* make sure empty strings are set to null */
-	name1=n1;
-	name2=n2;
-	if (name1 && !strcmp(name1,""))
-		name1=NULL;
-	if (name2 && !strcmp(name2,""))
-		name2=NULL;
-
-	/* null names mean no object id */
-	if (name1==NULL && name2==NULL) {
-		*object_id=0L;
-		return NDO_OK;
-	}
-
-	/* see if the object already exists in cached lookup table */
-	if (ndo2db_get_cached_object_id(idi,object_type,name1,name2,&cached_object_id)==NDO_OK) {
-		*object_id=cached_object_id;
-		return NDO_OK;
-	}
-
-	if (name1==NULL) {
-		es[0]=NULL;
-		if (asprintf(&buf1,"name1 IS NULL")==-1)
-			buf1=NULL;
-	}
-	else {
-		es[0]=ndo2db_db_escape_string(idi,name1);
-		/* HINT: HB 10/27/2009
-		 * BINARY operator is just a MySQL special to provide case sensitive queries
-		 * Think about it in the future if not only MySQL is supported 
-		 */
-		if (asprintf(&buf1,"BINARY name1='%s'",es[0])==-1)
-			buf1=NULL;
-	}
-
-	if (name2==NULL) {
-		es[1]=NULL;
-		if (asprintf(&buf2,"name2 IS NULL")==-1)
-			buf2=NULL;
-	}
-	else {
-		es[1]=ndo2db_db_escape_string(idi,name2);
-		/* HINT: HB 10/27/2009
-		 * BINARY operator is just a MySQL special to provide case sensitive queries
-		 * Think about it in the future if not only MySQL is supported 
-		 */
-		if (asprintf(&buf2,"BINARY name2='%s'",es[1])==-1)
-			buf2=NULL;
-	}
-	
-	if (asprintf(&buf,"SELECT * FROM %s WHERE instance_id='%lu' AND objecttype_id='%d' AND %s AND %s"
-		    ,ndo2db_db_tablenames[NDO2DB_DBTABLE_OBJECTS]
-		    ,idi->dbinfo.instance_id
-		    ,object_type
-		    ,buf1
-		    ,buf2
-		   )==-1)
-		buf=NULL;
-	if ((result=ndo2db_db_query(idi,buf))==NDO_OK) {
-		idi->dbinfo.mysql_result=mysql_store_result(&idi->dbinfo.mysql_conn);
-		if ((idi->dbinfo.mysql_row=mysql_fetch_row(idi->dbinfo.mysql_result))!=NULL) {
-			ndo2db_strtoul(idi->dbinfo.mysql_row[0],object_id);
-			found_object=NDO_TRUE;
-		}
-		mysql_free_result(idi->dbinfo.mysql_result);
-		idi->dbinfo.mysql_result=NULL;
-	}
-	free(buf);
-
-	/* free memory */
-	free(buf1);
-	free(buf2);
-
-	for (x = 0; x < (int)NAGIOS_SIZEOF_ARRAY(es); x++) free(es[x]);
-
-	if (found_object==NDO_FALSE)
-		result=NDO_ERROR;
-
-	return result;
-}
-
-
-int ndo2db_get_object_id_with_insert(ndo2db_idi *idi, int object_type,
-		char *n1, char *n2, unsigned long *object_id) {
-	int x = 0;
-	int result=NDO_OK;
-	char *buf=NULL;
-	char *buf1=NULL;
-	char *buf2=NULL;
-	char *name1=NULL;
-	char *name2=NULL;
-	char *es[2];
-
-	/* make sure empty strings are set to null */
-	name1=n1;
-	name2=n2;
-	if (name1 && !strcmp(name1,""))
-		name1=NULL;
-	if (name2 && !strcmp(name2,""))
-		name2=NULL;
-
-	/* null names mean no object id */
-	if (name1==NULL && name2==NULL) {
-		*object_id=0L;
-		return NDO_OK;
-	}
-
-	/* object already exists */
-	if ((result=ndo2db_get_object_id(idi,object_type,name1,name2,object_id))==NDO_OK)
-		return NDO_OK;
-
-	if (name1!=NULL) {
-		es[0]=ndo2db_db_escape_string(idi,name1);
-		if (asprintf(&buf1,", name1='%s'",es[0])==-1)
-			buf1=NULL;
-	}
-	else
-		es[0]=NULL;
-	if (name2!=NULL) {
-		es[1]=ndo2db_db_escape_string(idi,name2);
-		if (asprintf(&buf2,", name2='%s'",es[1])==-1)
-			buf2=NULL;
-	}
-	else
-		es[1]=NULL;
-	
-	if (asprintf(&buf,"INSERT INTO %s SET instance_id='%lu', objecttype_id='%d' %s %s"
-		    ,ndo2db_db_tablenames[NDO2DB_DBTABLE_OBJECTS]
-		    ,idi->dbinfo.instance_id
-		    ,object_type
-		    ,(buf1==NULL)?"":buf1
-		    ,(buf2==NULL)?"":buf2
-		   )==-1)
-		buf=NULL;
-	if ((result=ndo2db_db_query(idi,buf))==NDO_OK) {
-		*object_id=mysql_insert_id(&idi->dbinfo.mysql_conn);
-	}
-	free(buf);
-
-	/* cache object id for later lookups */
-	ndo2db_add_cached_object_id(idi,object_type,name1,name2,*object_id);
-
-	/* free memory */
-	free(buf1);
-	free(buf2);
-
-	/* free memory */
-	for (x = 0; x < (int)NAGIOS_SIZEOF_ARRAY(es); x++) free(es[x]);
-
-	return result;
-}
-
-
-
-int ndo2db_get_cached_object_ids(ndo2db_idi *idi) {
-	int result=NDO_OK;
-	unsigned long object_id=0L;
-	int objecttype_id=0;
-	char *buf=NULL;
-
-	/* find all the object definitions we already have */
-	if (asprintf(&buf,"SELECT object_id, objecttype_id, name1, name2 FROM %s WHERE instance_id='%lu'"
-		    ,ndo2db_db_tablenames[NDO2DB_DBTABLE_OBJECTS]
-		    ,idi->dbinfo.instance_id
-		   )==-1)
-		buf=NULL;
-
-	if ((result=ndo2db_db_query(idi,buf))==NDO_OK) {
-		idi->dbinfo.mysql_result=mysql_store_result(&idi->dbinfo.mysql_conn);
-		if (idi->dbinfo.mysql_result) {
-			while ((idi->dbinfo.mysql_row=mysql_fetch_row(idi->dbinfo.mysql_result))!=NULL) {
-
-				ndo2db_strtoul(idi->dbinfo.mysql_row[0],&object_id);
-				ndo2db_strtoi(idi->dbinfo.mysql_row[1],&objecttype_id);
-
-				/* add object to cached list */
-				ndo2db_add_cached_object_id(idi,objecttype_id,idi->dbinfo.mysql_row[2],idi->dbinfo.mysql_row[3],object_id);
-			}
-			mysql_free_result(idi->dbinfo.mysql_result);
-		}
-		else if (mysql_errno(&idi->dbinfo.mysql_conn) != 0) {
-			syslog(LOG_USER|LOG_INFO,
-					"Error: mysql_store_result() failed for '%s'\n", buf);
-		}
-		idi->dbinfo.mysql_result=NULL;
-	}
-	free(buf);
-
-	return result;
-}
-
-
-
-int ndo2db_get_cached_object_id(ndo2db_idi *idi, int object_type,
-		const char *name1, const char *name2, unsigned long *object_id) {
-	int result=NDO_ERROR;
-	int hashslot=0;
-	int compare=0;
-	ndo2db_dbobject *temp_object=NULL;
-	int y=0;
-
-	hashslot=ndo2db_object_hashfunc(name1,name2,NDO2DB_OBJECT_HASHSLOTS);
-#ifdef NDO2DB_DEBUG_CACHING
-	printf("OBJECT LOOKUP: type=%d, name1=%s, name2=%s\n",object_type,(name1==NULL)?"NULL":name1,(name2==NULL)?"NULL":name2);
-#endif
-
-	if (idi->dbinfo.object_hashlist==NULL)
-		return NDO_ERROR;
-
-	for (temp_object=idi->dbinfo.object_hashlist[hashslot],y=0;temp_object!=NULL;temp_object=temp_object->nexthash,y++) {
-#ifdef NDO2DB_DEBUG_CACHING
-		printf("OBJECT LOOKUP LOOPING [%d][%d]: type=%d, id=%lu, name1=%s, name2=%s\n",hashslot,y,temp_object->object_type,temp_object->object_id,(temp_object->name1==NULL)?"NULL":temp_object->name1,(temp_object->name2==NULL)?"NULL":temp_object->name2);
-#endif
-		compare=ndo2db_compare_object_hashdata(temp_object->name1,temp_object->name2,name1,name2);
-		if (compare==0 && temp_object->object_type==object_type)
-			break;
-	}
-
-	/* we have a match! */
-	if (temp_object && (ndo2db_compare_object_hashdata(temp_object->name1,temp_object->name2,name1,name2)==0) && temp_object->object_type==object_type) {
-#ifdef NDO2DB_DEBUG_CACHING
-		printf("OBJECT CACHE HIT [%d][%d]: type=%d, id=%lu, name1=%s, name2=%s\n",hashslot,y,object_type,temp_object->object_id,(name1==NULL)?"NULL":name1,(name2==NULL)?"NULL":name2);
-#endif
-		*object_id=temp_object->object_id;
-		result=NDO_OK;
-	}
-#ifdef NDO2DB_DEBUG_CACHING
-	else {
-		printf("OBJECT CACHE MISS: type=%d, name1=%s, name2=%s\n",object_type,(name1==NULL)?"NULL":name1,(name2==NULL)?"NULL":name2);
-	}
-#endif
-
-	return result;
-}
-
-
-
-int ndo2db_add_cached_object_id(ndo2db_idi *idi, int object_type,
-		const char *n1, const char *n2, unsigned long object_id) {
-	int result=NDO_OK;
-	ndo2db_dbobject *temp_object=NULL;
-	ndo2db_dbobject *lastpointer=NULL;
-	ndo2db_dbobject *new_object=NULL;
-	int x=0;
-	int y=0;
-	int hashslot=0;
-	int compare=0;
-	const char *name1=NULL;
-	const char *name2=NULL;
-
-	/* make sure empty strings are set to null */
-	name1=n1;
-	name2=n2;
-	if (name1 && !strcmp(name1,""))
-		name1=NULL;
-	if (name2 && !strcmp(name2,""))
-		name2=NULL;
-
-	/* null names mean no object id, so don't cache */
-	if (name1==NULL && name2==NULL) {
-		return NDO_OK;
-	}
-
-#ifdef NDO2DB_DEBUG_CACHING
-	printf("OBJECT CACHE ADD: type=%d, id=%lu, name1=%s, name2=%s\n",object_type,object_id,(name1==NULL)?"NULL":name1,(name2==NULL)?"NULL":name2);
-#endif
-
-	/* initialize hash list if necessary */
-	if (idi->dbinfo.object_hashlist==NULL) {
-
-		idi->dbinfo.object_hashlist=(ndo2db_dbobject **)malloc(sizeof(ndo2db_dbobject *)*NDO2DB_OBJECT_HASHSLOTS);
-		if (idi->dbinfo.object_hashlist==NULL)
-			return NDO_ERROR;
-		
-		for (x=0;x<NDO2DB_OBJECT_HASHSLOTS;x++)
-			idi->dbinfo.object_hashlist[x]=NULL;
-	}
-
-	/* allocate and populate new object */
-	if ((new_object=(ndo2db_dbobject *)malloc(sizeof(ndo2db_dbobject)))==NULL)
-		return NDO_ERROR;
-	new_object->object_type=object_type;
-	new_object->object_id=object_id;
-	new_object->name1=NULL;
-	if (name1)
-		new_object->name1=strdup(name1);
-	new_object->name2=NULL;
-	if (name2)
-		new_object->name2=strdup(name2);
-
-	hashslot=ndo2db_object_hashfunc(new_object->name1,new_object->name2,NDO2DB_OBJECT_HASHSLOTS);
-
-	lastpointer=NULL;
-	for (temp_object=idi->dbinfo.object_hashlist[hashslot],y=0;temp_object!=NULL;temp_object=temp_object->nexthash,y++) {
-		compare=ndo2db_compare_object_hashdata(temp_object->name1,temp_object->name2,new_object->name1,new_object->name2);
-		if (compare<0)
-			break;
-		lastpointer=temp_object;
-	}
-
-	if (lastpointer)
-		lastpointer->nexthash=new_object;
-	else
-		idi->dbinfo.object_hashlist[hashslot]=new_object;
-	new_object->nexthash=temp_object;
-
-	return result;
-}
-
-
-#ifdef NDO2DB_ORIGINAL_OBJECT_HASH
-#define NDO2DB_OBJECT_HASHPRIME 1
-#else
-#define NDO2DB_OBJECT_HASHPRIME 509
-#endif
-
-int ndo2db_object_hashfunc(const char *name1, const char *name2, int hashslots) {
-	unsigned int i, result;
-
-#ifdef NDO2DB_ORIGINAL_OBJECT_HASH
-	result = 0;
-#else
-	result = 0x123; /* "magic" (there may be a better seed...) */
-#endif
-	if (name1)
-		for (i=0;i<strlen(name1);i++)
-			result = name1[i] + result * NDO2DB_OBJECT_HASHPRIME;
-
-	if (name2)
-		for (i=0;i<strlen(name2);i++)
-			result = name2[i] + result * NDO2DB_OBJECT_HASHPRIME;
-
-	return result % hashslots;
-}
-
-
-
-int ndo2db_compare_object_hashdata(const char *val1a, const char *val1b,
-		const char *val2a, const char *val2b) {
-	int result=0;
-
-	/* check first name */
-	if (val1a==NULL && val2a==NULL)
-		result=0;
-	else if (val1a==NULL)
-		result=1;
-	else if (val2a==NULL)
-		result=-1;
-	else
-		result=strcmp(val1a,val2a);
-
-	/* check second name if necessary */
-	if (result==0) {
-		if (val1b==NULL && val2b==NULL)
-			result=0;
-		else if (val1b==NULL)
-			result=1;
-		else if (val2b==NULL)
-			result=-1;
-		else
-			return strcmp(val1b,val2b);
-	}
-
-	return result;
-}
-
-
-
-int ndo2db_free_cached_object_ids(ndo2db_idi *idi) {
-	int x=0;
-	ndo2db_dbobject *temp_object=NULL;
-	ndo2db_dbobject *next_object=NULL;
-
-	if (idi==NULL)
-		return NDO_OK;
-
-	if (idi->dbinfo.object_hashlist) {
-
-		for (x=0;x<NDO2DB_OBJECT_HASHSLOTS;x++) {
-			for (temp_object=idi->dbinfo.object_hashlist[x];temp_object!=NULL;temp_object=next_object) {
-				next_object=temp_object->nexthash;
-				free(temp_object->name1);
-				free(temp_object->name2);
-				free(temp_object);
-			}
-		}
-
-		free(idi->dbinfo.object_hashlist);
-		idi->dbinfo.object_hashlist=NULL;
-	}
-
-	return NDO_OK;
-}
-
-
-
-int ndo2db_set_all_objects_as_inactive(ndo2db_idi *idi) {
-	int result=NDO_OK;
-	char *buf=NULL;
-
-	/* mark all objects as being inactive */
-	if (asprintf(&buf,"UPDATE %s SET is_active='0' WHERE instance_id='%lu'"
-		    ,ndo2db_db_tablenames[NDO2DB_DBTABLE_OBJECTS]
-		    ,idi->dbinfo.instance_id
-		   )==-1)
-		buf=NULL;
-
-	result=ndo2db_db_query(idi,buf);
-	free(buf);
-
-	return result;
-}
-
-
-
-int ndo2db_set_object_as_active(ndo2db_idi *idi, int object_type, unsigned long object_id) {
-	int result=NDO_OK;
-	char *buf=NULL;
-	
-	/* mark the object as being active */
-	if (asprintf(&buf,"UPDATE %s SET is_active='1' WHERE instance_id='%lu' AND objecttype_id='%d' AND object_id='%lu'"
-		    ,ndo2db_db_tablenames[NDO2DB_DBTABLE_OBJECTS]
-		    ,idi->dbinfo.instance_id
-		    ,object_type
-		    ,object_id
-		   )==-1)
-		buf=NULL;
-
-	result=ndo2db_db_query(idi,buf);
-	free(buf);
-
-	return result;
-}
-
-
-
-/****************************************************************************/
 /* ARCHIVED LOG DATA HANDLER                                                */
 /****************************************************************************/
 
@@ -778,9 +325,9 @@ int ndo2db_handle_timedeventdata(ndo2db_idi *idi) {
 
 	/* get the object id (if applicable) */
 	if (event_type==EVENT_SERVICE_CHECK || (event_type==EVENT_SCHEDULED_DOWNTIME && idi->buffered_input[NDO_DATA_SERVICE]!=NULL && strcmp(idi->buffered_input[NDO_DATA_SERVICE],"")))
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 	if (event_type==EVENT_HOST_CHECK || (event_type==EVENT_SCHEDULED_DOWNTIME && (idi->buffered_input[NDO_DATA_SERVICE]==NULL || !strcmp(idi->buffered_input[NDO_DATA_SERVICE],""))))
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 
 	/* HISTORICAL TIMED EVENTS */
@@ -1115,12 +662,12 @@ int ndo2db_handle_eventhandlerdata(ndo2db_idi *idi) {
 
 	/* get the object id */
 	if (eventhandler_type==SERVICE_EVENTHANDLER || eventhandler_type==GLOBAL_SERVICE_EVENTHANDLER)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 	else
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 	/* get the command id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&command_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&command_id);
 
 	/* save entry to db */
 	if (asprintf(&buf,"instance_id='%lu', eventhandler_type='%d', object_id='%lu', state='%d', state_type='%d', start_time=%s, start_time_usec='%lu', end_time=%s, end_time_usec='%lu', command_object_id='%lu', command_args='%s', command_line='%s', timeout='%d', early_timeout='%d', execution_time='%lf', return_code='%d', output='%s', long_output='%s'"
@@ -1206,9 +753,9 @@ int ndo2db_handle_notificationdata(ndo2db_idi *idi) {
 
 	/* get the object id */
 	if (notification_type==SERVICE_NOTIFICATION)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 	if (notification_type==HOST_NOTIFICATION)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 	/* save entry to db */
 	if (asprintf(&buf,"instance_id='%lu', notification_type='%d', notification_reason='%d', start_time=%s, start_time_usec='%lu', end_time=%s, end_time_usec='%lu', object_id='%lu', state='%d', output='%s', long_output='%s', escalated='%d', contacts_notified='%d'"
@@ -1282,7 +829,7 @@ int ndo2db_handle_contactnotificationdata(ndo2db_idi *idi) {
 	ts[1]=ndo2db_db_timet_to_sql(idi,end_time.tv_sec);
 
 	/* get the contact id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,idi->buffered_input[NDO_DATA_CONTACTNAME],NULL,&contact_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,idi->buffered_input[NDO_DATA_CONTACTNAME],NULL,&contact_id);
 
 	/* save entry to db */
 	if (asprintf(&buf,"instance_id='%lu', notification_id='%lu', start_time=%s, start_time_usec='%lu', end_time=%s, end_time_usec='%lu', contact_object_id='%lu'"
@@ -1353,7 +900,7 @@ int ndo2db_handle_contactnotificationmethoddata(ndo2db_idi *idi) {
 	
 
 	/* get the command id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&command_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&command_id);
 
 	/* save entry to db */
 	if (asprintf(&buf,"instance_id='%lu', contactnotification_id='%lu', start_time=%s, start_time_usec='%lu', end_time=%s, end_time_usec='%lu', command_object_id='%lu', command_args='%s'"
@@ -1452,11 +999,11 @@ int ndo2db_handle_servicecheckdata(ndo2db_idi *idi) {
 	ts[1]=ndo2db_db_timet_to_sql(idi,end_time.tv_sec);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 
 	/* get the command id */
 	if (idi->buffered_input[NDO_DATA_COMMANDNAME]!=NULL && strcmp(idi->buffered_input[NDO_DATA_COMMANDNAME],""))
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&command_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&command_id);
 	else
 		command_id=0L;
 
@@ -1573,11 +1120,11 @@ int ndo2db_handle_hostcheckdata(ndo2db_idi *idi) {
 	ts[1]=ndo2db_db_timet_to_sql(idi,end_time.tv_sec);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 	/* get the command id */
 	if (idi->buffered_input[NDO_DATA_COMMANDNAME]!=NULL && strcmp(idi->buffered_input[NDO_DATA_COMMANDNAME],""))
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&command_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&command_id);
 	else
 		command_id=0L;
 
@@ -1679,9 +1226,9 @@ int ndo2db_handle_commentdata(ndo2db_idi *idi) {
 
 	/* get the object id */
 	if (comment_type==SERVICE_COMMENT)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 	if (comment_type==HOST_COMMENT)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 	/* ADD HISTORICAL COMMENTS */
 	/* save a record of comments that get added (or get loaded and weren't previously recorded).... */
@@ -1839,9 +1386,9 @@ int ndo2db_handle_downtimedata(ndo2db_idi *idi) {
 
 	/* get the object id */
 	if (downtime_type==SERVICE_DOWNTIME)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 	if (downtime_type==HOST_DOWNTIME)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 	/* HISTORICAL DOWNTIME */
 
@@ -2039,9 +1586,9 @@ int ndo2db_handle_flappingdata(ndo2db_idi *idi) {
 
 	/* get the object id (if applicable) */
 	if (flapping_type==SERVICE_FLAPPING)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 	if (flapping_type==HOST_FLAPPING)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 	/* save entry to db */
 	if (asprintf(&buf,"INSERT INTO %s SET instance_id='%lu', event_time=%s, event_time_usec='%lu', event_type='%d', reason_type='%d', flapping_type='%d', object_id='%lu', percent_state_change='%lf', low_threshold='%lf', high_threshold='%lf', comment_time=%s, internal_comment_id='%lu'"
@@ -2299,8 +1846,8 @@ int ndo2db_handle_hoststatusdata(ndo2db_idi *idi) {
 	ts[9]=ndo2db_db_timet_to_sql(idi,next_notification);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_HOSTCHECKPERIOD],NULL,&check_timeperiod_object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_HOSTCHECKPERIOD],NULL,&check_timeperiod_object_id);
 
 	/* generate query string */
 	if (asprintf(&buf1,"instance_id='%lu', host_object_id='%lu', status_update_time=%s, output='%s', long_output='%s', perfdata='%s', current_state='%d', has_been_checked='%d', should_be_scheduled='%d', current_check_attempt='%d', max_check_attempts='%d', last_check=%s, next_check=%s, check_type='%d', last_state_change=%s, last_hard_state_change=%s, last_hard_state='%d', last_time_up=%s, last_time_down=%s, last_time_unreachable=%s, state_type='%d', last_notification=%s, next_notification=%s, no_more_notifications='%d', notifications_enabled='%d', problem_has_been_acknowledged='%d', acknowledgement_type='%d', current_notification_number='%d', passive_checks_enabled='%d', active_checks_enabled='%d', event_handler_enabled='%d', flap_detection_enabled='%d', is_flapping='%d', percent_state_change='%lf', latency='%lf', execution_time='%lf', scheduled_downtime_depth='%d', failure_prediction_enabled='%d', process_performance_data='%d', obsess_over_host='%d', modified_host_attributes='%lu', event_handler='%s', check_command='%s', normal_check_interval='%lf', retry_check_interval='%lf', check_timeperiod_object_id='%lu'"
@@ -2499,8 +2046,8 @@ int ndo2db_handle_servicestatusdata(ndo2db_idi *idi) {
 	ts[10]=ndo2db_db_timet_to_sql(idi,next_notification);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_SERVICECHECKPERIOD],NULL,&check_timeperiod_object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_SERVICECHECKPERIOD],NULL,&check_timeperiod_object_id);
 
 	/* generate query string */
 	if (asprintf(&buf1,"instance_id='%lu', service_object_id='%lu', status_update_time=%s, output='%s', long_output='%s', perfdata='%s', current_state='%d', has_been_checked='%d', should_be_scheduled='%d', current_check_attempt='%d', max_check_attempts='%d', last_check=%s, next_check=%s, check_type='%d', last_state_change=%s, last_hard_state_change=%s, last_hard_state='%d', last_time_ok=%s, last_time_warning=%s, last_time_unknown=%s, last_time_critical=%s, state_type='%d', last_notification=%s, next_notification=%s, no_more_notifications='%d', notifications_enabled='%d', problem_has_been_acknowledged='%d', acknowledgement_type='%d', current_notification_number='%d', passive_checks_enabled='%d', active_checks_enabled='%d', event_handler_enabled='%d', flap_detection_enabled='%d', is_flapping='%d', percent_state_change='%lf', latency='%lf', execution_time='%lf', scheduled_downtime_depth='%d', failure_prediction_enabled='%d', process_performance_data='%d', obsess_over_service='%d', modified_service_attributes='%lu', event_handler='%s', check_command='%s', normal_check_interval='%lf', retry_check_interval='%lf', check_timeperiod_object_id='%lu'"
@@ -2621,7 +2168,7 @@ int ndo2db_handle_contactstatusdata(ndo2db_idi *idi) {
 	ts[2]=ndo2db_db_timet_to_sql(idi,last_service_notification);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,idi->buffered_input[NDO_DATA_CONTACTNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,idi->buffered_input[NDO_DATA_CONTACTNAME],NULL,&object_id);
 
 	/* generate query string */
 	if (asprintf(&buf1,"instance_id='%lu', contact_object_id='%lu', status_update_time=%s, host_notifications_enabled='%d', service_notifications_enabled='%d', last_host_notification=%s, last_service_notification=%s, modified_attributes='%lu', modified_host_attributes='%lu', modified_service_attributes='%lu'"
@@ -2815,9 +2362,9 @@ int ndo2db_handle_acknowledgementdata(ndo2db_idi *idi) {
 
 	/* get the object id */
 	if (acknowledgement_type==SERVICE_ACKNOWLEDGEMENT)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 	if (acknowledgement_type==HOST_ACKNOWLEDGEMENT)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 	/* save entry to db */
 	if (asprintf(&buf,"instance_id='%lu', entry_time=%s, entry_time_usec='%lu', acknowledgement_type='%d', object_id='%lu', state='%d', author_name='%s', comment_data='%s', is_sticky='%d', persistent_comment='%d', notify_contacts='%d'"
@@ -2899,9 +2446,9 @@ int ndo2db_handle_statechangedata(ndo2db_idi *idi) {
 
 	/* get the object id */
 	if (statechange_type==SERVICE_STATECHANGE)
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOST],idi->buffered_input[NDO_DATA_SERVICE],&object_id);
 	else
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOST],NULL,&object_id);
 
 	/* save entry to db */
 	if (asprintf(&buf,"INSERT INTO %s SET instance_id='%lu', state_time=%s, state_time_usec='%lu', object_id='%lu', state_change='%d', state='%d', state_type='%d', current_check_attempt='%d', max_check_attempts='%d', last_state='%d', last_hard_state='%d', output='%s', long_output='%s'"
@@ -3259,13 +2806,13 @@ int ndo2db_handle_hostdefinition(ndo2db_idi *idi) {
 	/* get the check command */
 	cmdptr=strtok(idi->buffered_input[NDO_DATA_HOSTCHECKCOMMAND],"!");
 	argptr=strtok(NULL,"\x0");
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&check_command_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&check_command_id);
 	es[2]=ndo2db_db_escape_string(idi,argptr);
 	
 	/* get the event handler command */
 	cmdptr=strtok(idi->buffered_input[NDO_DATA_HOSTEVENTHANDLER],"!");
 	argptr=strtok(NULL,"\x0");
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&eventhandler_command_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&eventhandler_command_id);
 	es[3]=ndo2db_db_escape_string(idi,argptr);
 	
 	es[4]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_NOTES]);
@@ -3279,14 +2826,14 @@ int ndo2db_handle_hostdefinition(ndo2db_idi *idi) {
 	es[12]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_HOSTALIAS]);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOSTNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOSTNAME],NULL,&object_id);
 
 	/* flag the object as being active */
-	ndo2db_set_object_as_active(idi,NDO2DB_OBJECTTYPE_HOST,object_id);
+	ndo2db_set_obj_active(idi,NDO2DB_OBJECTTYPE_HOST,object_id);
 
 	/* get the timeperiod ids */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_HOSTCHECKPERIOD],NULL,&check_timeperiod_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_HOSTNOTIFICATIONPERIOD],NULL,&notification_timeperiod_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_HOSTCHECKPERIOD],NULL,&check_timeperiod_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_HOSTNOTIFICATIONPERIOD],NULL,&notification_timeperiod_id);
 
  	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', host_object_id='%lu', alias='%s', display_name='%s', address='%s', check_command_object_id='%lu', check_command_args='%s', eventhandler_command_object_id='%lu', eventhandler_command_args='%s', check_timeperiod_object_id='%lu', notification_timeperiod_object_id='%lu', failure_prediction_options='%s', check_interval='%lf', retry_interval='%lf', max_check_attempts='%d', first_notification_delay='%lf', notification_interval='%lf', notify_on_down='%d', notify_on_unreachable='%d', notify_on_recovery='%d', notify_on_flapping='%d', notify_on_downtime='%d', stalk_on_up='%d', stalk_on_down='%d', stalk_on_unreachable='%d', flap_detection_enabled='%d', flap_detection_on_up='%d', flap_detection_on_down='%d', flap_detection_on_unreachable='%d', low_flap_threshold='%lf', high_flap_threshold='%lf', process_performance_data='%d', freshness_checks_enabled='%d', freshness_threshold='%d', passive_checks_enabled='%d', event_handler_enabled='%d', active_checks_enabled='%d', retain_status_information='%d', retain_nonstatus_information='%d', notifications_enabled='%d', obsess_over_host='%d', failure_prediction_enabled='%d', notes='%s', notes_url='%s', action_url='%s', icon_image='%s', icon_image_alt='%s', vrml_image='%s', statusmap_image='%s', have_2d_coords='%d', x_2d='%d', y_2d='%d', have_3d_coords='%d', x_3d='%lf', y_3d='%lf', z_3d='%lf'"
@@ -3380,7 +2927,7 @@ int ndo2db_handle_hostdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', host_id='%lu', parent_host_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -3409,7 +2956,7 @@ int ndo2db_handle_hostdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', host_id='%lu', contactgroup_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -3438,7 +2985,7 @@ int ndo2db_handle_hostdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', host_id='%lu', contact_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -3493,10 +3040,10 @@ int ndo2db_handle_hostgroupdefinition(ndo2db_idi *idi) {
 	es[0]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_HOSTGROUPALIAS]);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOSTGROUP,idi->buffered_input[NDO_DATA_HOSTGROUPNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOSTGROUP,idi->buffered_input[NDO_DATA_HOSTGROUPNAME],NULL,&object_id);
 
 	/* flag the object as being active */
-	ndo2db_set_object_as_active(idi,NDO2DB_OBJECTTYPE_HOSTGROUP,object_id);
+	ndo2db_set_obj_active(idi,NDO2DB_OBJECTTYPE_HOSTGROUP,object_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', hostgroup_object_id='%lu', alias='%s'"
@@ -3530,7 +3077,7 @@ int ndo2db_handle_hostgroupdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', hostgroup_id='%lu', host_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -3668,13 +3215,13 @@ int ndo2db_handle_servicedefinition(ndo2db_idi *idi) {
 	/* get the check command */
 	cmdptr=strtok(idi->buffered_input[NDO_DATA_SERVICECHECKCOMMAND],"!");
 	argptr=strtok(NULL,"\x0");
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&check_command_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&check_command_id);
 	es[1]=ndo2db_db_escape_string(idi,argptr);
 	
 	/* get the event handler command */
 	cmdptr=strtok(idi->buffered_input[NDO_DATA_SERVICEEVENTHANDLER],"!");
 	argptr=strtok(NULL,"\x0");
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&eventhandler_command_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&eventhandler_command_id);
 	es[2]=ndo2db_db_escape_string(idi,argptr);
 	
 	es[3]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_NOTES]);
@@ -3685,15 +3232,15 @@ int ndo2db_handle_servicedefinition(ndo2db_idi *idi) {
 	es[8]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_DISPLAYNAME]);
 
 	/* get the object ids */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOSTNAME],idi->buffered_input[NDO_DATA_SERVICEDESCRIPTION],&object_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOSTNAME],NULL,&host_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOSTNAME],idi->buffered_input[NDO_DATA_SERVICEDESCRIPTION],&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOSTNAME],NULL,&host_id);
 
 	/* flag the object as being active */
-	ndo2db_set_object_as_active(idi,NDO2DB_OBJECTTYPE_SERVICE,object_id);
+	ndo2db_set_obj_active(idi,NDO2DB_OBJECTTYPE_SERVICE,object_id);
 
 	/* get the timeperiod ids */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_SERVICECHECKPERIOD],NULL,&check_timeperiod_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_SERVICENOTIFICATIONPERIOD],NULL,&notification_timeperiod_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_SERVICECHECKPERIOD],NULL,&check_timeperiod_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_SERVICENOTIFICATIONPERIOD],NULL,&notification_timeperiod_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', host_object_id='%lu', service_object_id='%lu', display_name='%s', check_command_object_id='%lu', check_command_args='%s', eventhandler_command_object_id='%lu', eventhandler_command_args='%s', check_timeperiod_object_id='%lu', notification_timeperiod_object_id='%lu', failure_prediction_options='%s', check_interval='%lf', retry_interval='%lf', max_check_attempts='%d', first_notification_delay='%lf', notification_interval='%lf', notify_on_warning='%d', notify_on_unknown='%d', notify_on_critical='%d', notify_on_recovery='%d', notify_on_flapping='%d', notify_on_downtime='%d', stalk_on_ok='%d', stalk_on_warning='%d', stalk_on_unknown='%d', stalk_on_critical='%d', is_volatile='%d', flap_detection_enabled='%d', flap_detection_on_ok='%d', flap_detection_on_warning='%d', flap_detection_on_unknown='%d', flap_detection_on_critical='%d', low_flap_threshold='%lf', high_flap_threshold='%lf', process_performance_data='%d', freshness_checks_enabled='%d', freshness_threshold='%d', passive_checks_enabled='%d', event_handler_enabled='%d', active_checks_enabled='%d', retain_status_information='%d', retain_nonstatus_information='%d', notifications_enabled='%d', obsess_over_service='%d', failure_prediction_enabled='%d', notes='%s', notes_url='%s', action_url='%s', icon_image='%s', icon_image_alt='%s'"
@@ -3785,7 +3332,7 @@ int ndo2db_handle_servicedefinition(ndo2db_idi *idi) {
 		sptr=strtok(NULL,"\x0");
 
 		/* get the object id of the member */
-		result = ndo2db_get_object_id_with_insert(idi, 
+		result = ndo2db_get_obj_id_with_insert(idi,
 				NDO2DB_OBJECTTYPE_SERVICE, hptr, sptr, &member_id);
 
 		if (asprintf(&buf,
@@ -3814,7 +3361,7 @@ int ndo2db_handle_servicedefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', service_id='%lu', contactgroup_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -3843,7 +3390,7 @@ int ndo2db_handle_servicedefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', service_id='%lu', contact_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -3900,10 +3447,10 @@ int ndo2db_handle_servicegroupdefinition(ndo2db_idi *idi) {
 	es[0]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_SERVICEGROUPALIAS]);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICEGROUP,idi->buffered_input[NDO_DATA_SERVICEGROUPNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICEGROUP,idi->buffered_input[NDO_DATA_SERVICEGROUPNAME],NULL,&object_id);
 
 	/* flag the object as being active */
-	ndo2db_set_object_as_active(idi,NDO2DB_OBJECTTYPE_SERVICEGROUP,object_id);
+	ndo2db_set_obj_active(idi,NDO2DB_OBJECTTYPE_SERVICEGROUP,object_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', servicegroup_object_id='%lu', alias='%s'"
@@ -3941,7 +3488,7 @@ int ndo2db_handle_servicegroupdefinition(ndo2db_idi *idi) {
 		sptr=strtok(NULL,"\x0");
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,hptr,sptr,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,hptr,sptr,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', servicegroup_id='%lu', service_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -3999,9 +3546,9 @@ int ndo2db_handle_hostdependencydefinition(ndo2db_idi *idi) {
 	result=ndo2db_strtoi(idi->buffered_input[NDO_DATA_FAILONUNREACHABLE],&fail_on_unreachable);
 
 	/* get the object ids */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOSTNAME],NULL,&object_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_DEPENDENTHOSTNAME],NULL,&dependent_object_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_DEPENDENCYPERIOD],NULL,&timeperiod_object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOSTNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_DEPENDENTHOSTNAME],NULL,&dependent_object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_DEPENDENCYPERIOD],NULL,&timeperiod_object_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', host_object_id='%lu', dependent_host_object_id='%lu', dependency_type='%d', inherits_parent='%d', timeperiod_object_id='%lu', fail_on_up='%d', fail_on_down='%d', fail_on_unreachable='%d'"
@@ -4068,9 +3615,9 @@ int ndo2db_handle_servicedependencydefinition(ndo2db_idi *idi) {
 	result=ndo2db_strtoi(idi->buffered_input[NDO_DATA_FAILONCRITICAL],&fail_on_critical);
 
 	/* get the object ids */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOSTNAME],idi->buffered_input[NDO_DATA_SERVICEDESCRIPTION],&object_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_DEPENDENTHOSTNAME],idi->buffered_input[NDO_DATA_DEPENDENTSERVICEDESCRIPTION],&dependent_object_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_DEPENDENCYPERIOD],NULL,&timeperiod_object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOSTNAME],idi->buffered_input[NDO_DATA_SERVICEDESCRIPTION],&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_DEPENDENTHOSTNAME],idi->buffered_input[NDO_DATA_DEPENDENTSERVICEDESCRIPTION],&dependent_object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_DEPENDENCYPERIOD],NULL,&timeperiod_object_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', service_object_id='%lu', dependent_service_object_id='%lu', dependency_type='%d', inherits_parent='%d', timeperiod_object_id='%lu', fail_on_ok='%d', fail_on_warning='%d', fail_on_unknown='%d', fail_on_critical='%d'"
@@ -4141,10 +3688,10 @@ int ndo2db_handle_hostescalationdefinition(ndo2db_idi *idi) {
 	result=ndo2db_strtoi(idi->buffered_input[NDO_DATA_ESCALATEONUNREACHABLE],&escalate_unreachable);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOSTNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_HOST,idi->buffered_input[NDO_DATA_HOSTNAME],NULL,&object_id);
 
 	/* get the timeperiod id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_ESCALATIONPERIOD],NULL,&timeperiod_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_ESCALATIONPERIOD],NULL,&timeperiod_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', host_object_id='%lu', timeperiod_object_id='%lu', first_notification='%d', last_notification='%d', notification_interval='%lf', escalate_on_recovery='%d', escalate_on_down='%d', escalate_on_unreachable='%d'"
@@ -4182,7 +3729,7 @@ int ndo2db_handle_hostescalationdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', hostescalation_id='%lu', contactgroup_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -4211,7 +3758,7 @@ int ndo2db_handle_hostescalationdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', hostescalation_id='%lu', contact_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -4276,10 +3823,10 @@ int ndo2db_handle_serviceescalationdefinition(ndo2db_idi *idi) {
 	result=ndo2db_strtoi(idi->buffered_input[NDO_DATA_ESCALATEONCRITICAL],&escalate_critical);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOSTNAME],idi->buffered_input[NDO_DATA_SERVICEDESCRIPTION],&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_SERVICE,idi->buffered_input[NDO_DATA_HOSTNAME],idi->buffered_input[NDO_DATA_SERVICEDESCRIPTION],&object_id);
 
 	/* get the timeperiod id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_ESCALATIONPERIOD],NULL,&timeperiod_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_ESCALATIONPERIOD],NULL,&timeperiod_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', service_object_id='%lu', timeperiod_object_id='%lu', first_notification='%d', last_notification='%d', notification_interval='%lf', escalate_on_recovery='%d', escalate_on_warning='%d', escalate_on_unknown='%d', escalate_on_critical='%d'"
@@ -4318,7 +3865,7 @@ int ndo2db_handle_serviceescalationdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', serviceescalation_id='%lu', contactgroup_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -4347,7 +3894,7 @@ int ndo2db_handle_serviceescalationdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', serviceescalation_id='%lu', contact_object_id='%lu'"
 			    ,idi->dbinfo.instance_id
@@ -4395,10 +3942,10 @@ int ndo2db_handle_commanddefinition(ndo2db_idi *idi) {
 	es[0]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_COMMANDLINE]);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,idi->buffered_input[NDO_DATA_COMMANDNAME],NULL,&object_id);
 
 	/* flag the object as being active */
-	ndo2db_set_object_as_active(idi,NDO2DB_OBJECTTYPE_COMMAND,object_id);
+	ndo2db_set_obj_active(idi,NDO2DB_OBJECTTYPE_COMMAND,object_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', object_id='%lu', config_type='%d', command_line='%s'"
@@ -4458,10 +4005,10 @@ int ndo2db_handle_timeperiodefinition(ndo2db_idi *idi) {
 	es[0]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_TIMEPERIODALIAS]);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_TIMEPERIODNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_TIMEPERIODNAME],NULL,&object_id);
 
 	/* flag the object as being active */
-	ndo2db_set_object_as_active(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,object_id);
+	ndo2db_set_obj_active(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,object_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', timeperiod_object_id='%lu', alias='%s'"
@@ -4601,14 +4148,14 @@ int ndo2db_handle_contactdefinition(ndo2db_idi *idi) {
 	es[2]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_PAGERADDRESS]);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,idi->buffered_input[NDO_DATA_CONTACTNAME],NULL,&contact_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,idi->buffered_input[NDO_DATA_CONTACTNAME],NULL,&contact_id);
 
 	/* get the timeperiod ids */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_HOSTNOTIFICATIONPERIOD],NULL,&host_timeperiod_id);
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_SERVICENOTIFICATIONPERIOD],NULL,&service_timeperiod_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_HOSTNOTIFICATIONPERIOD],NULL,&host_timeperiod_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_TIMEPERIOD,idi->buffered_input[NDO_DATA_SERVICENOTIFICATIONPERIOD],NULL,&service_timeperiod_id);
 
 	/* flag the object as being active */
-	ndo2db_set_object_as_active(idi,NDO2DB_OBJECTTYPE_CONTACT,contact_id);
+	ndo2db_set_obj_active(idi,NDO2DB_OBJECTTYPE_CONTACT,contact_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', contact_object_id='%lu', alias='%s', email_address='%s', pager_address='%s', host_timeperiod_object_id='%lu', service_timeperiod_object_id='%lu', host_notifications_enabled='%d', service_notifications_enabled='%d', can_submit_commands='%d', notify_service_recovery='%d', notify_service_warning='%d', notify_service_unknown='%d', notify_service_critical='%d', notify_service_flapping='%d', notify_service_downtime='%d', notify_host_recovery='%d', notify_host_down='%d', notify_host_unreachable='%d', notify_host_flapping='%d', notify_host_downtime='%d'"
@@ -4711,7 +4258,7 @@ int ndo2db_handle_contactdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* find the command */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&command_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&command_id);
 
 		es[0]=ndo2db_db_escape_string(idi,argptr);
 
@@ -4752,7 +4299,7 @@ int ndo2db_handle_contactdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* find the command */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&command_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_COMMAND,cmdptr,NULL,&command_id);
 
 		es[0]=ndo2db_db_escape_string(idi,argptr);
 
@@ -4813,10 +4360,10 @@ int ndo2db_handle_contactgroupdefinition(ndo2db_idi *idi) {
 	es[0]=ndo2db_db_escape_string(idi,idi->buffered_input[NDO_DATA_CONTACTGROUPALIAS]);
 
 	/* get the object id */
-	result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,idi->buffered_input[NDO_DATA_CONTACTGROUPNAME],NULL,&object_id);
+	result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,idi->buffered_input[NDO_DATA_CONTACTGROUPNAME],NULL,&object_id);
 
 	/* flag the object as being active */
-	ndo2db_set_object_as_active(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,object_id);
+	ndo2db_set_obj_active(idi,NDO2DB_OBJECTTYPE_CONTACTGROUP,object_id);
 
 	/* add definition to db */
 	if (asprintf(&buf,"instance_id='%lu', config_type='%d', contactgroup_object_id='%lu', alias='%s'"
@@ -4850,7 +4397,7 @@ int ndo2db_handle_contactgroupdefinition(ndo2db_idi *idi) {
 			continue;
 
 		/* get the object id of the member */
-		result=ndo2db_get_object_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
+		result=ndo2db_get_obj_id_with_insert(idi,NDO2DB_OBJECTTYPE_CONTACT,mbuf.buffer[x],NULL,&member_id);
 
 		if (asprintf(&buf,"instance_id='%lu', contactgroup_id='%lu', contact_object_id='%lu'"
 			    ,idi->dbinfo.instance_id

@@ -98,6 +98,7 @@ enum ndo2db_stmt_id {
 
 	NDO2DB_STMT_HANDLE_CONFIGFILE,
 	NDO2DB_STMT_SAVE_CONFIGFILEVARIABLE,
+
 	NDO2DB_STMT_HANDLE_RUNTIMEVARIABLE,
 
 	NDO2DB_STMT_HANDLE_HOST,
@@ -947,7 +948,7 @@ static int ndo2db_stmt_execute(ndo2db_idi *idi, struct ndo2db_stmt *stmt) {
 
 
 
-/**
+/*
  * From Nagios 4 lib/dkhash.c: Polynomial conversion ignoring overflows.
  * Pretty standard hash, once based on Ozan Yigit's sdbm() hash but later
  * modified for Nagios to produce better results on our typical data.
@@ -958,46 +959,46 @@ static int ndo2db_stmt_execute(ndo2db_idi *idi, struct ndo2db_stmt *stmt) {
 #define NDO2DB_OBJECT_HASHPRIME 509
 #endif
 
-/** Calculates the next hash value for a string. */
-#define ACCUMULATE_HASH(h, v) \
-	h = v + h * NDO2DB_OBJECT_HASHPRIME
-
 /**
  * Calculates an object's hash value.
- * @return A hash value mod buckets based on the concatenation of n1 and n2.
+ * @return A hash value mod size based on the concatenation of n1 and n2.
  */
-inline static int ndo2db_obj_hash(const char *n1, const char *n2, int buckets) {
+inline static int ndo2db_obj_hash(const char *n1, const char *n2, unsigned size) {
 #ifdef NDO2DB_ORIGINAL_OBJECT_HASH
-	unsigned int h = 0;
+	unsigned h = 0;
 #else
-	unsigned int h = 0x123; /* "magic" (there is probably a better seed...) */
+	unsigned h = 0x123; /* "magic" (there is probably a better seed...) */
 #endif
 
-	while (*n1) ACCUMULATE_HASH(h, *n1++);
-	if (n2) while (*n2) ACCUMULATE_HASH(h, *n2++);
+	while (*n1) h = *n1++ + h * NDO2DB_OBJECT_HASHPRIME;
+	if (n2) while (*n2) h = *n2++ + h * NDO2DB_OBJECT_HASHPRIME;
 
-	return h % buckets;
+	return h % size;
 }
 
 
 /**
- * Compares two objects' hash data.
- * @return 0 if a == b; +1 if a > b; -1 if a < b.
+ * Compares two objects' hash data, ordered by: object_type, name1, name2.
+ * @return 0 if a == b; >0 if a > b; <0 if a < b.
+ * @param at Object a type.
  * @param a1 Object a name1.
  * @param a2 Object a name2.
+ * @param bt Object b type.
  * @param b1 Object b name1.
  * @param b2 Object b name2.
  */
-inline static int ndo2db_compare_obj_hashdata(const char *a1, const char *a2,
-		const char *b1, const char *b2) {
+inline static int ndo2db_compare_obj_hashdata(const int at, const char *a1,
+		const char *a2, const int bt, const char *b1, const char *b2) {
+	int result;
 
-	/* Check first names (we know thesse are both non-null from our callers). */
-	int result = strcmp(a1, b1);
-	/* Check second names if necessary */
-	return (result != 0) ? result
-			: (!a2 && !b2) ? 0
-			: (!a2) ? +1
-			: (!b2) ? -1
+	/* First compare by object type. */
+	if ((result = at - bt) != 0) return result;
+	/* Compare by first name (our callers assure these are non-null). */
+	if ((result = strcmp(a1, b1)) != 0) return result;
+	/* Compare by second name if all else is equal. */
+	return (!a2 && !b2) ? 0
+			: (!a2) ? +1 /* NULL > non-null... */
+			: (!b2) ? -1 /* non-null < NULL... */
 			: strcmp(a2, b2);
 }
 
@@ -1014,9 +1015,9 @@ inline static int ndo2db_compare_obj_hashdata(const char *a1, const char *a2,
  */
 static int ndo2db_get_cached_obj_id(ndo2db_idi *idi, int type,
 		const char *name1, const char *name2, unsigned long *object_id) {
-	ndo2db_dbobject *o;
-	int y;
+	ndo2db_dbobject *curr;
 	int h;
+	int i;
 
 	/* ndo2db_get_cached_obj_id() is only called by ndo2db_get_obj_id() which is
 	 * only called by ndo2db_get_obj_id_with_insert() which normalizes empty
@@ -1034,23 +1035,21 @@ static int ndo2db_get_cached_obj_id(ndo2db_idi *idi, int type,
 
 	h = ndo2db_obj_hash(name1, name2, NDO2DB_OBJECT_HASHSLOTS);
 
-	for (o = idi->dbinfo.object_hashlist[h], y = 0; o; o = o->nexthash, ++y) {
-		int c;
+	for (curr = idi->dbinfo.object_hashlist[h], i = 0; curr; curr = curr->nexthash, ++i) {
+		int c = ndo2db_compare_obj_hashdata(
+				curr->object_type, curr->name1, curr->name2,
+				type, name1, name2);
 #ifdef NDO2DB_DEBUG_CACHING
-		printf("OBJECT LOOKUP LOOPING [%d][%d]: type=%d, id=%lu, name1=%s, name2=%s\n",
-				h, y, o->object_type, o->object_id,
-				o->name1, (o->name2 ? o->name2 : "NULL"));
+		printf("OBJECT LOOKUP LOOPING [%d][%d]: type=%d, id=%lu, name1=%s, name2=%s, c=%d\n",
+				h, i, curr->object_type, curr->object_id,
+				curr->name1, (curr->name2 ? curr->name2 : "NULL"), c);
 #endif
-		/* We only need to compare objects of the same type. */
-		if (o->object_type != type) continue;
-
-		c = ndo2db_compare_obj_hashdata(o->name1, o->name2, name1, name2);
 		if (c == 0) {
 			/* We have a match! */
 #ifdef NDO2DB_DEBUG_CACHING
 			printf("OBJECT CACHE HIT\n");
 #endif
-			*object_id = o->object_id;
+			*object_id = curr->object_id;
 			return NDO_OK;
 		}
 		else if (c < 0) {
@@ -1059,7 +1058,7 @@ static int ndo2db_get_cached_obj_id(ndo2db_idi *idi, int type,
 		}
 	}
 
-	/* No match was found :(. */
+	/* No match :(. */
 #ifdef NDO2DB_DEBUG_CACHING
 	printf("OBJECT CACHE MISS\n");
 #endif
@@ -1082,9 +1081,9 @@ static int ndo2db_add_cached_obj_id(ndo2db_idi *idi, int type,
 		const char *name1, const char *name2, unsigned long object_id) {
 	ndo2db_dbobject *curr;
 	ndo2db_dbobject *prev;
-	ndo2db_dbobject *o;
-	int y;
+	ndo2db_dbobject *new;
 	int h;
+	int i;
 
 	/* ndo2db_add_cached_obj_id() is only called by ndo2db_load_obj_cache() and
 	 * ndo2db_get_obj_id_with_insert() which normalize empty names:
@@ -1103,41 +1102,52 @@ static int ndo2db_add_cached_obj_id(ndo2db_idi *idi, int type,
 	}
 
 	/* Construct our new object. */
-	o = malloc(sizeof(ndo2db_dbobject));
-	if (!o) return NDO_ERROR;
-	o->object_type = type;
-	o->object_id = object_id;
-	o->name1 = strdup(name1);
-	o->name2 = name2 ? strdup(name2) : NULL;
+	new = malloc(sizeof(ndo2db_dbobject));
+	if (!new) return NDO_ERROR;
+	new->object_type = type;
+	new->object_id = object_id;
+	new->name1 = strdup(name1);
+	new->name2 = name2 ? strdup(name2) : NULL;
 	/* Maintain our invariants. */
-	if (!o->name1 || (name2 && !o->name2)) {
-		free(o->name1), free(o->name2), free(o);
+	if (!new->name1 || (name2 && !new->name2)) {
+		free(new->name1), free(new->name2), free(new);
 		return NDO_ERROR;
 	}
 
-	h = ndo2db_obj_hash(o->name1, o->name2, NDO2DB_OBJECT_HASHSLOTS);
+	h = ndo2db_obj_hash(new->name1, new->name2, NDO2DB_OBJECT_HASHSLOTS);
 
-	for (prev = NULL, curr = idi->dbinfo.object_hashlist[h], y = 0;
+	for (prev = NULL, curr = idi->dbinfo.object_hashlist[h], i = 0;
 			curr;
-			prev = curr, curr = curr->nexthash, ++y) {
-		int c = ndo2db_compare_obj_hashdata(curr->name1, curr->name2, o->name1, o->name2);
+			prev = curr, curr = curr->nexthash, ++i) {
+		int c = ndo2db_compare_obj_hashdata(
+				curr->object_type, curr->name1, curr->name2,
+				new->object_type, new->name1, new->name2);
+#ifdef NDO2DB_DEBUG_CACHING
+		printf("OBJECT ADD LOOPING [%d][%d]: type=%d, id=%lu, name1=%s, name2=%s, c=%d\n",
+				h, i, curr->object_type, curr->object_id,
+				curr->name1, (curr->name2 ? curr->name2 : "NULL"), c);
+#endif
 		if (c == 0) {
 			/* There shouldn't be duplicates, and adding duplicates would hide
-			 * objects since lookup would pick the first match in the list. */
+			 * objects since lookup would pick the first match, so don't do it. */
 #ifdef NDO2DB_DEBUG_CACHING
 			printf("OBJECT CACHE DUPLICATE\n");
 #endif
-			free(o->name1), free(o->name2), free(o);
+			free(new->name1), free(new->name2), free(new);
 			return NDO_ERROR;
 		}
 		else if (c < 0) {
+			/* curr is numerically 'less' than new, insert before curr. This orders
+			 * the list in descending numerical order. Ascending order would put
+			 * hosts and services first, a micro-optimization that would need to
+			 * agree with any remaining implementation in dbhandlrer.c. */
 			break;
 		}
 	}
 
-	if (prev) prev->nexthash = o;
-	else idi->dbinfo.object_hashlist[h] = o;
-	o->nexthash = curr;
+	if (prev) prev->nexthash = new;
+	else idi->dbinfo.object_hashlist[h] = new;
+	new->nexthash = curr;
 
 	return NDO_OK;
 }
@@ -1201,7 +1211,7 @@ static int ndo2db_get_obj_id(ndo2db_idi *idi, int type,
  * @return NDO_OK with the object id in *object_id, otherwise an error code
  * (usually NDO_ERROR) and *object_id = 0.
  */
-static int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int type,
+int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int type,
 		const char *name1, const char *name2, unsigned long *object_id) {
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_GET_OBJ_ID_INSERT;
 	MYSQL_BIND *binds = stmt->param_binds;
@@ -1232,11 +1242,15 @@ static int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int type,
 
 
 /**
- * Fetches all objects for an instance from the DB.
+ * Fetches all known objects for an instance from the DB on connection startup.
  * @param idi Input data and DB connection info.
  * @return NDO_OK on success, an error code otherwise, usually NDO_ERROR.
  * @post It is possible for the object cache to be partially populated if an
  * error occurs while processing results.
+ * @note Though executed once when starting up a connection, preparation makes
+ * processing the (potentially large) result set a bit more efficient, and the
+ * code (perhaps) a bit cleaner. Any performance gain will depend on result set
+ * size.
  */
 int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 	int status;
@@ -1335,7 +1349,7 @@ int ndo2db_set_all_objs_inactive(ndo2db_idi *idi) {
  * @param type ndo2db object type code.
  * @param id Object id.
  */
-static int ndo2db_set_obj_active(ndo2db_idi *idi, int type, unsigned long id) {
+int ndo2db_set_obj_active(ndo2db_idi *idi, int type, unsigned long id) {
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_SET_OBJ_ACTIVE;
 
 	COPY_TO_BOUND_UINT(id, stmt->param_binds[0]);
