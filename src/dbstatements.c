@@ -269,9 +269,12 @@ NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_customvariablestatus);
  * matter: ndo2db_stmt_init_stmts() doesn't use statement ids, the initializers
  * themselves know the statement ids they need. After prefixing table names,
  * and connecting to the DB and obtaining an instance_id, executing all these
- * functions in order will initialize all ndo2db_stmts. */
+ * functions will initialize all ndo2db_stmts. Generally, ndo2db_stmt_init_x
+ * initializes ndo2db_stmts[NDO2DB_STMT_HANDLE_X] and any related
+ * ndo2db_stmts[NDO2DB_STMT_SAVE_XY]. */
 static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 	ndo2db_stmt_init_obj,
+	/* ...NDO2DB_STMT_GET_OBJ_ID */
 	/* ...NDO2DB_STMT_GET_OBJ_ID_N2_NULL */
 	/* ...NDO2DB_STMT_GET_OBJ_ID_INSERT */
 	/* ...NDO2DB_STMT_GET_OBJ_IDS */
@@ -541,11 +544,11 @@ int ndo2db_stmt_free_stmts(void) {
 /**
  * Prints an "INSERT INTO ..." statment template.
  * @param idi Input data and DB connection info.
- * @param dbuf Dynamic buffer for printing statment templates, reset by caller.
+ * @param dbuf Dynamic buffer for printing statement templates, reset by caller.
  * @param table Prefixed table name.
- * @param params Column name and input datatype to bind for each parameter.
+ * @param params Parameter info (column name, datatype, flags, etc.).
  * @param np Number of parameters.
- * @param up_on_dup Non-zero to add an "ON DUPLICATE KEY ..." clause.
+ * @param up_on_dup Non-zero to add an "ON DUPLICATE KEY UPDATE ..." clause.
  * @return NDO_OK on success, an error code otherwise, usually NDO_ERROR.
  */
 static int ndo2db_stmt_print_insert(
@@ -720,7 +723,7 @@ static int ndo2db_stmt_bind_results(struct ndo2db_stmt *stmt) {
 			bind->buffer = ndo2db_stmt_bind_short + n_short++;
 			break;
 
-		case BIND_TYPE_U32: /* Equal to BIND_TYPE_ULONG */
+		case BIND_TYPE_U32:
 		case BIND_TYPE_FROM_UNIXTIME: /* Timestamps are bound as unsigned int. */
 			bind->buffer_type = MYSQL_TYPE_LONG;
 			bind->buffer = ndo2db_stmt_bind_uint + n_uint++;
@@ -896,7 +899,7 @@ static int ndo2db_stmt_process_buffered_input(
 			ndo2db_strtoint(bi[p->bi_index], b->buffer);
 			break;
 
-		case BIND_TYPE_U32: /* Equal to BIND_TYPE_ULONG */
+		case BIND_TYPE_U32:
 		case BIND_TYPE_FROM_UNIXTIME: /* Timestamps are bound as unsigned int. */
 			ndo2db_strtouint(bi[p->bi_index], b->buffer);
 			break;
@@ -949,9 +952,9 @@ static int ndo2db_stmt_execute(ndo2db_idi *idi, struct ndo2db_stmt *stmt) {
 
 
 /*
- * From Nagios 4 lib/dkhash.c: Polynomial conversion ignoring overflows.
+ * From Nagios 4 lib/dkhash.c: "Polynomial conversion ignoring overflows.
  * Pretty standard hash, once based on Ozan Yigit's sdbm() hash but later
- * modified for Nagios to produce better results on our typical data.
+ * modified for Nagios to produce better results on our typical data."
  */
 #ifdef NDO2DB_ORIGINAL_OBJECT_HASH
 #define NDO2DB_OBJECT_HASHPRIME 1
