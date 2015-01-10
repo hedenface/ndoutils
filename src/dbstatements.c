@@ -505,7 +505,7 @@ int ndo2db_stmt_init_stmts(ndo2db_idi *idi) {
 		ndo_dbuf_reset(&dbuf);
 		status = ndo2db_stmt_initializers[i](idi, &dbuf);
 		if (status != NDO_OK) {
-			syslog(LOG_USER|LOG_ERR, "ndo2db_stmt_initializers[%u] failed.", (unsigned)i);
+			syslog(LOG_USER|LOG_ERR, "ndo2db_stmt_initializers[%zu] failed.", i);
 			syslog(LOG_USER|LOG_ERR, "mysql_error: %s", mysql_error(&idi->dbinfo.mysql_conn));
 			ndo2db_stmt_free_stmts();
 			break;
@@ -523,17 +523,14 @@ int ndo2db_stmt_init_stmts(ndo2db_idi *idi) {
  */
 int ndo2db_stmt_free_stmts(void) {
 	/* Caller assures idi is non-null. */
-	int i;
+	size_t i;
 
 	for (i = 0; i < NDO2DB_NUM_STMTS; ++i) {
-		if (ndo2db_stmts[i].handle) {
-			mysql_stmt_close(ndo2db_stmts[i].handle);
-			ndo2db_stmts[i].handle = NULL;
-		}
+		if (ndo2db_stmts[i].handle) mysql_stmt_close(ndo2db_stmts[i].handle);
 		free(ndo2db_stmts[i].param_binds);
 		free(ndo2db_stmts[i].result_binds);
-		memset(&ndo2db_stmts[i], 0, sizeof(ndo2db_stmts[i]));
 	}
+	memset(ndo2db_stmts, 0, sizeof(ndo2db_stmts));
 
 	return NDO_OK;
 }
