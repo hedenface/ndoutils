@@ -67,11 +67,12 @@ struct ndo2db_object {
 
 /** Our object type,name1,name2 to id hash table and cache. */
 static struct ndo2db_object **ndo2db_objects;
+
 /** Allocated object hash table size, the number of buckets. */
 static size_t ndo2db_objects_size;
 /** Number of cached objects in the hash table. */
 static size_t ndo2db_objects_count;
-/** Allocated hash table size, the number of buckets. */
+/** Count of collided objects. */
 static size_t ndo2db_objects_collisions;
 
 
@@ -169,6 +170,93 @@ enum ndo2db_stmt_id {
 	NDO2DB_STMT_SAVE_CUSTOMVARIABLESTATUS,
 
 	NDO2DB_NUM_STMTS
+};
+
+/** Prepared statement names for debugging info, indexed by id. */
+static const char *ndo2db_stmt_names[] = {
+	"NDO2DB_STMT_NONE",
+
+	"NDO2DB_STMT_GET_OBJ_ID",
+	"NDO2DB_STMT_GET_OBJ_ID_N2_NULL",
+	"NDO2DB_STMT_GET_OBJ_ID_INSERT",
+	"NDO2DB_STMT_GET_OBJ_IDS",
+	"NDO2DB_STMT_SET_OBJ_ACTIVE",
+
+	"NDO2DB_STMT_HANDLE_LOGENTRY",
+	"NDO2DB_STMT_HANDLE_PROCESSDATA",
+	"NDO2DB_STMT_HANDLE_TIMEDEVENTDATA",
+	"NDO2DB_STMT_HANDLE_LOGDATA",
+	"NDO2DB_STMT_HANDLE_SYSTEMCOMMANDDATA",
+	"NDO2DB_STMT_HANDLE_EVENTHANDLERDATA",
+	"NDO2DB_STMT_HANDLE_NOTIFICATIONDATA",
+	"NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONDATA",
+	"NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONMETHODDATA",
+
+	"NDO2DB_STMT_HANDLE_COMMENTDATA",
+	"NDO2DB_STMT_HANDLE_DOWNTIMEDATA",
+	"NDO2DB_STMT_HANDLE_FLAPPINGDATA",
+	"NDO2DB_STMT_HANDLE_PROGRAMSTATUSDATA",
+
+	"NDO2DB_STMT_HANDLE_HOSTCHECK",
+	"NDO2DB_STMT_HANDLE_SERVICECHECK",
+	"NDO2DB_STMT_HANDLE_HOSTSTATUS",
+	"NDO2DB_STMT_HANDLE_SERVICESTATUS",
+
+	"NDO2DB_STMT_HANDLE_CONTACTSTATUSDATA",
+	"NDO2DB_STMT_HANDLE_EXTERNALCOMMANDDATA",
+	"NDO2DB_STMT_HANDLE_ACKNOWLEDGEMENTDATA",
+	"NDO2DB_STMT_HANDLE_STATECHANGEDATA",
+
+	"NDO2DB_STMT_HANDLE_CONFIGFILE",
+	"NDO2DB_STMT_SAVE_CONFIGFILEVARIABLE",
+
+	"NDO2DB_STMT_HANDLE_RUNTIMEVARIABLE",
+
+	"NDO2DB_STMT_HANDLE_HOST",
+	"NDO2DB_STMT_SAVE_HOSTPARENT",
+	"NDO2DB_STMT_SAVE_HOSTCONTACTGROUP",
+	"NDO2DB_STMT_SAVE_HOSTCONTACT",
+
+	"NDO2DB_STMT_HANDLE_HOSTGROUP",
+	"NDO2DB_STMT_SAVE_HOSTGROUPMEMBER",
+
+	"NDO2DB_STMT_HANDLE_SERVICE",
+#ifdef BUILD_NAGIOS_4X
+	"NDO2DB_STMT_SAVE_SERVICEPARENT",
+#endif
+	"NDO2DB_STMT_SAVE_SERVICECONTACTGROUP",
+	"NDO2DB_STMT_SAVE_SERVICECONTACT",
+
+	"NDO2DB_STMT_HANDLE_SERVICEGROUP",
+	"NDO2DB_STMT_SAVE_SERVICEGROUPMEMBER",
+
+	"NDO2DB_STMT_HANDLE_HOSTDEPENDENCY",
+	"NDO2DB_STMT_HANDLE_SERVICEDEPENDENCY",
+
+	"NDO2DB_STMT_HANDLE_HOSTESCALATION",
+	"NDO2DB_STMT_SAVE_HOSTESCALATIONCONTACTGROUP",
+	"NDO2DB_STMT_SAVE_HOSTESCALATIONCONTACT",
+
+	"NDO2DB_STMT_HANDLE_SERVICEESCALATION",
+	"NDO2DB_STMT_SAVE_SERVICEESCALATIONCONTACTGROUP",
+	"NDO2DB_STMT_SAVE_SERVICEESCALATIONCONTACT",
+
+	"NDO2DB_STMT_HANDLE_COMMAND",
+
+	"NDO2DB_STMT_HANDLE_TIMEPERIOD",
+	"NDO2DB_STMT_SAVE_TIMEPERIODRANGE",
+
+	"NDO2DB_STMT_HANDLE_CONTACT",
+	"NDO2DB_STMT_SAVE_CONTACTADDRESS",
+	"NDO2DB_STMT_SAVE_CONTACTNOTIFICATIONCOMMAND",
+
+	"NDO2DB_STMT_HANDLE_CONTACTGROUP",
+	"NDO2DB_STMT_SAVE_CONTACTGROUPMEMBER",
+
+	"NDO2DB_STMT_SAVE_CUSTOMVARIABLE",
+	"NDO2DB_STMT_SAVE_CUSTOMVARIABLESTATUS",
+
+	"NDO2DB_NUM_STMTS"
 };
 
 /** Input binding type codes for our use cases. */
@@ -690,8 +778,9 @@ static int ndo2db_stmt_bind_params(struct ndo2db_stmt *stmt) {
 			break;
 
 		default:
-			syslog(LOG_USER|LOG_ERR, "Error: %s: stmts[%d]->params[%zu] has bad type %d.",
-					"ndo2db_stmt_bind_params", stmt->id, i, stmt->params[i].type);
+			syslog(LOG_USER|LOG_ERR,
+					"ndo2db_stmt_bind_params: %s params[%zu] has bad type %d.",
+					ndo2db_stmt_names[stmt->id], i, stmt->params[i].type);
 			return NDO_ERROR;
 		}
 
@@ -768,8 +857,9 @@ static int ndo2db_stmt_bind_results(struct ndo2db_stmt *stmt) {
 			break;
 
 		default:
-			syslog(LOG_USER|LOG_ERR, "Error: %s: stmts[%d]->results[%zu] has bad type %d.",
-					"ndo2db_stmt_bind_results", stmt->id, i, stmt->results[i].type);
+			syslog(LOG_USER|LOG_ERR,
+					"ndo2db_stmt_bind_results: %s results[%zu] has bad type %d.",
+					ndo2db_stmt_names[stmt->id], i, stmt->results[i].type);
 			return NDO_ERROR;
 		}
 
@@ -820,8 +910,9 @@ static int ndo2db_stmt_prepare_and_bind(
 	stmt->id = stmt_id;
 
 	/* Prepare our statement with the template. */
-	ndo2db_log_debug_info(NDO2DB_DEBUGL_SQL, 0,
-			"Statement %d template: %s", stmt->id, template);
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_STMT, 0,
+			"do2db_stmt_prepare_and_bind: %s template: %s\n",
+			ndo2db_stmt_names[stmt->id], template);
 
 	/* Close (and free) any existing statement and get a new statement handle. */
 	if (stmt->handle) mysql_stmt_close(stmt->handle);
@@ -934,8 +1025,9 @@ static int ndo2db_stmt_process_buffered_input(
 			break;
 
 		default:
-			syslog(LOG_USER|LOG_ERR, "Error: %s: stmts[%d]->params[%zu] has bad type %d.",
-					"ndo2db_stmt_process_buffered_input", stmt->id, i, p->type);
+			syslog(LOG_USER|LOG_ERR,
+					"ndo2db_stmt_process_buffered_input: %s params[%zu] has bad type %d.",
+					ndo2db_stmt_names[stmt->id], i, p->type);
 			return NDO_ERROR;
 		}
 	}
@@ -1053,13 +1145,18 @@ static int ndo2db_lookup_obj(int type, const char *name1, const char *name2,
 	unsigned i;
 
 	if (!ndo2db_objects) {
+#ifdef NDO2DB_DEBUG_CACHING
+		ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
+				"ndo2db_lookup_obj: no object cache allocated\n");
+#endif
 		*object_id = 0;
 		return NDO_ERROR;
 	}
 
 	h = ndo2db_obj_hash(name1, name2, ndo2db_objects_size);
 #ifdef NDO2DB_DEBUG_CACHING
-	printf("OBJECT LOOKUP: type=%d, name1=%s, name2=%s, h=%u\n",
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
+			"ndo2db_lookup_obj: type=%d, name1=%s, name2=%s, h=%u\n",
 			type, name1, name2, h);
 #endif
 
@@ -1067,13 +1164,14 @@ static int ndo2db_lookup_obj(int type, const char *name1, const char *name2,
 		int c = ndo2db_obj_compare(
 				curr->type, curr->name1, curr->name2, type, name1, name2);
 #ifdef NDO2DB_DEBUG_CACHING
-		printf("OBJECT LOOKUP LOOPING [%u]: id=%lu, type=%d, name1=%s, name2=%s, c=%d\n",
+		ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 1,
+				"ndo2db_lookup_obj: loop [%u]: id=%lu, type=%d, name1=%s, name2=%s, c=%d\n",
 				i, curr->id, curr->type, curr->name1, curr->name2, c);
 #endif
 		if (c == 0) {
 			/* We have a match! */
 #ifdef NDO2DB_DEBUG_CACHING
-			printf("OBJECT CACHE HIT\n");
+			ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0, "ndo2db_lookup_obj: hit\n");
 #endif
 			*object_id = curr->id;
 			return NDO_OK;
@@ -1086,7 +1184,7 @@ static int ndo2db_lookup_obj(int type, const char *name1, const char *name2,
 
 	/* No match :(. */
 #ifdef NDO2DB_DEBUG_CACHING
-	printf("OBJECT CACHE MISS\n");
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0, "ndo2db_lookup_obj: miss\n");
 #endif
 	*object_id = 0;
 	return NDO_ERROR;
@@ -1113,7 +1211,8 @@ static int ndo2db_cache_obj(int type, const char *name1, const char *name2,
 	unsigned h = ndo2db_obj_hash(name1, name2, ndo2db_objects_size);
 
 #ifdef NDO2DB_DEBUG_CACHING
-	printf("OBJECT CACHE ADD: id=%lu, type=%d, name1=%s, name2=%s, h=%u\n",
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
+			"ndo2db_cache_obj: id=%lu, type=%d, name1=%s, name2=%s, h=%u\n",
 			object_id, type, name1, name2, h);
 #endif
 
@@ -1146,14 +1245,15 @@ static int ndo2db_cache_obj(int type, const char *name1, const char *name2,
 		int c = ndo2db_obj_compare(
 				curr->type, curr->name1, curr->name2, type, name1, name2);
 #ifdef NDO2DB_DEBUG_CACHING
-		printf("OBJECT ADD LOOPING [%u]: id=%lu, type=%d, name1=%s, name2=%s, c=%d\n",
+		ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 1,
+				"ndo2db_cache_obj: loop [%u]: id=%lu, type=%d, name1=%s, name2=%s, c=%d\n",
 				i, curr->id, curr->type, curr->name1, curr->name2, c);
 #endif
 		if (c == 0) {
 			/* There shouldn't be duplicates, and adding duplicates would hide
 			 * objects since lookup would pick the first match, so don't do it. */
 #ifdef NDO2DB_DEBUG_CACHING
-			printf("OBJECT CACHE DUPLICATE\n");
+			ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0, "ndo2db_cache_obj: duplicate\n");
 #endif
 			free(new->name1), free(new->name2), free(new);
 			return NDO_ERROR;
@@ -1210,6 +1310,7 @@ static int ndo2db_find_obj(ndo2db_idi *idi, int type,	const char *name1,
 	/* For the DB, empty name2 is NULL to keep in line with existing data. The
 	 * "name2 IS NULL" statement doesn't have a name2 parameter. */
 	if (*name2) COPY_BIND_STRING_NOT_EMPTY(name2, binds[2]);
+
 	/* Execute the statement... */
 	CHK_OK(ndo2db_stmt_execute(idi, stmt));
 	/* ...and fetch the first (only) result row to bound storage. */
@@ -1293,8 +1394,8 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 	/* Buffer the complete result set from the server. */
 	if (mysql_stmt_store_result(stmt->handle)) {
 		syslog(LOG_USER|LOG_ERR,
-				"Error: mysql_stmt_store_result() failed for stmts[%d]: %s",
-				stmt->id, mysql_stmt_error(stmt->handle));
+				"ndo2db_load_obj_cache: mysql_stmt_store_result() failed: %s",
+				mysql_stmt_error(stmt->handle));
 		return NDO_ERROR;
 	}
 
@@ -1304,6 +1405,11 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 	num_slots = (size_t)num_rows * 2;
 	num_slots = (num_slots > NDO2DB_OBJECT_HASHSLOTS)
 			? num_slots : NDO2DB_OBJECT_HASHSLOTS;
+#ifdef NDO2DB_DEBUG_CACHING
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
+			"ndo2db_load_obj_cache: num_rows=%llu, num_slots=%zu\n",
+			num_rows, num_slots);
+#endif
 
 	/* Free and reallocate the cache, we're rebuilding from scratch. */
 	ndo2db_free_obj_cache();
@@ -1324,7 +1430,13 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 
 		/* There is no valid object with an empty first name, there shuoldn't be
 		 * one in the DB, and there wont be one in the cache. */
-		if (!name1 || !*name1) continue;
+		if (!name1 || !*name1) {
+#ifdef NDO2DB_DEBUG_CACHING
+			ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
+					"ndo2db_load_obj_cache: name1 empty\n");
+#endif
+			continue;
+		}
 
 		/* Now we're good to cache the object. */
 		ndo2db_cache_obj(type, name1, name2, id);
@@ -1689,13 +1801,12 @@ int ndo2db_stmt_handle_configfilevariables(ndo2db_idi *idi,
 
 	/* Declare and convert timestamp, etc. */
 	DECLARE_CONVERT_STD_DATA;
-	ndo2db_log_debug_info(NDO2DB_DEBUGL_SQL, 0, "HANDLE_CONFIGFILEVARS [1]\n");
-	ndo2db_log_debug_info(NDO2DB_DEBUGL_SQL, 0, "TSTAMP: %lu   LATEST: %lu\n",
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_SQL, 0,
+			"ndo2db_stmt_handle_configfilevariables: tstamp: %lu, latest: %lu\n",
 			(unsigned long)tstamp.tv_sec,
 			(unsigned long)idi->dbinfo.latest_realtime_data_time);
 	/* Don't store old data. */
 	RETURN_OK_IF_STD_DATA_TOO_OLD;
-	ndo2db_log_debug_info(NDO2DB_DEBUGL_SQL, 0, "HANDLE_CONFIGFILEVARS [2]\n");
 
 	/* Covert/copy our input data to bound parameter storage... */
 	COPY_TO_BOUND_SHORT(configfile_type, binds[0]);

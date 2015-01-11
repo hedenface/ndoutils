@@ -1,7 +1,5 @@
 #####################################################################
 # NDO2DB DAEMON CONFIG FILE
-#
-# Last Modified: 01-02-2009
 #####################################################################
 
 
@@ -188,13 +186,15 @@ table_trim_interval=60
 
 
 # DEBUG LEVEL
-# This option determines how much (if any) debugging information will
-# be written to the debug file.  OR values together to log multiple
-# types of information.
+# This option determines how much (if any) debugging information will be
+# written to the debug file. OR values together to log multiple types of
+# information.
 # Values: -1 = Everything
 #          0 = Nothing
 #          1 = Process info
-#	   2 = SQL queries
+#          2 = SQL queries
+#          4 = Prepared statements
+#          8 = Object caching (if compiled with -DNDO2DB_DEBUG_CACHING)
 
 debug_level=0
 

@@ -203,14 +203,16 @@ typedef struct ndo2db_input_data_info_struct{
 
 /***************** debugging levels *******************/
 
-#define NDO2DB_DEBUGL_ALL                      -1
-#define NDO2DB_DEBUGL_NONE                     0
-#define NDO2DB_DEBUGL_PROCESSINFO              1
-#define NDO2DB_DEBUGL_SQL                      2
+#define NDO2DB_DEBUGL_ALL        -1
+#define NDO2DB_DEBUGL_NONE        0
+#define NDO2DB_DEBUGL_PROCESSINFO 1
+#define NDO2DB_DEBUGL_SQL         2
+#define NDO2DB_DEBUGL_STMT        4
+#define NDO2DB_DEBUGL_CACHE       8
 
-#define NDO2DB_DEBUGV_BASIC                    0
-#define NDO2DB_DEBUGV_MORE		       1
-#define NDO2DB_DEBUGV_MOST                     2
+#define NDO2DB_DEBUGV_BASIC       0
+#define NDO2DB_DEBUGV_MORE        1
+#define NDO2DB_DEBUGV_MOST        2
 
 
 
@@ -261,5 +263,8 @@ int ndo2db_strtotv(const char *,struct timeval *);
 int ndo2db_open_debug_log(void);
 int ndo2db_close_debug_log(void);
 
+int ndo2db_log_debug_info(int level, int verbosity, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+
 void ndo2db_async_client_handle(void);
+
 #endif
