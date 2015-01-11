@@ -2234,7 +2234,7 @@ int ndo2db_log_debug_info(int level, int verbosity, const char *fmt, ...) {
 			/* unlink any previous old debug file */
 			unlink(temp_path);
 			/* rotate the debug file */
-			my_rename(ndo2db_debug_file, temp_path);
+			rename(ndo2db_debug_file, temp_path);
 			/* free memory */
 			free(temp_path);
 		}

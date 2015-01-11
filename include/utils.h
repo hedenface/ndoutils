@@ -47,8 +47,6 @@ int ndo_dbuf_strcat(ndo_dbuf *, const char *);
 int ndo_dbuf_strcat_escaped(ndo_dbuf *, const char *);
 int ndo_dbuf_printf(ndo_dbuf *db, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
-int my_rename(char *, char *);
-
 void ndomod_strip(char *);
 
 #endif

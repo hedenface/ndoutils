@@ -199,69 +199,6 @@ int ndo_dbuf_printf(ndo_dbuf *db, const char *fmt, ...) {
 
 
 /******************************************************************/
-/************************* FILE FUNCTIONS *************************/
-/******************************************************************/
-
-/* renames a file - works across filesystems (Mike Wiacek) */
-int my_rename(char *source, char *dest){
-	char buffer[1024]={0};
-	int rename_result=0;
-	int source_fd=-1;
-	int dest_fd=-1;
-	int bytes_read=0;
-
-
-	/* make sure we have something */
-	if(source==NULL || dest==NULL)
-		return -1;
-
-	/* first see if we can rename file with standard function */
-	rename_result=rename(source,dest);
-
-	/* handle any errors... */
-	if(rename_result==-1){
-
-		/* an error occurred because the source and dest files are on different filesystems */
-		if(errno==EXDEV){
-
-			/* open destination file for writing */
-			if((dest_fd=open(dest,O_WRONLY|O_TRUNC|O_CREAT|O_APPEND,0644))>0){
-
-				/* open source file for reading */
-				if((source_fd=open(source,O_RDONLY,0644))>0){
-
-					while((bytes_read=read(source_fd,buffer,sizeof(buffer)))>0)
-						write(dest_fd,buffer,bytes_read);
-
-					close(source_fd);
-					close(dest_fd);
-				
-					/* delete the original file */
-					unlink(source);
-
-					/* reset result since we successfully copied file */
-					rename_result=0;
-					}
-
-				else{
-					close(dest_fd);
-					return rename_result;
-					}
-				}
-			}
-
-		else{
-			return rename_result;
-			}
-	        }
-
-	return rename_result;
-        }
-
-
-
-
-/******************************************************************/
 /************************ STRING FUNCTIONS ************************/
 /******************************************************************/
 
