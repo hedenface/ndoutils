@@ -1124,7 +1124,7 @@ int ndo2db_idi_init(ndo2db_idi *idi) {
 
 
 /* asynchronous handle clients events */
-void ndo2db_async_client_handle() {
+void ndo2db_async_client_handle(void) {
 	ndo2db_idi idi;
 
 	/* initialize input data information */

@@ -261,5 +261,5 @@ int ndo2db_strtotv(const char *,struct timeval *);
 int ndo2db_open_debug_log(void);
 int ndo2db_close_debug_log(void);
 
-void ndo2db_async_client_handle();
+void ndo2db_async_client_handle(void);
 #endif
