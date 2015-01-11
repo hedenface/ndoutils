@@ -48,8 +48,31 @@
 
 
 
-/* Our prefixed table names (from db.c). */
+/** Our prefixed table names (from db.c). */
 extern char *ndo2db_db_tablenames[NDO2DB_NUM_DBTABLES];
+
+
+
+/** Default and minimum number of object cache hash slots. */
+#define NDO2DB_OBJECT_HASHSLOTS 4096
+
+/** Cached object information and hash bucket list node. */
+struct ndo2db_object {
+	char *name1;
+	char *name2;
+	int type;
+	unsigned long id;
+	struct ndo2db_object *next;
+};
+
+/** Our object type,name1,name2 to id hash table and cache. */
+static struct ndo2db_object **ndo2db_objects;
+/** Allocated object hash table size, the number of buckets. */
+static size_t ndo2db_objects_size;
+/** Number of cached objects in the hash table. */
+static size_t ndo2db_objects_count;
+/** Allocated hash table size, the number of buckets. */
+static size_t ndo2db_objects_collisions;
 
 
 
@@ -218,8 +241,8 @@ static signed short ndo2db_stmt_bind_short[4];
 static unsigned int ndo2db_stmt_bind_int[2];
 static unsigned int ndo2db_stmt_bind_uint[14];
 static double ndo2db_stmt_bind_double[5];
-static char ndo2db_stmt_bind_short_str[13][256];
-static char ndo2db_stmt_bind_long_str[2][65536];
+static char ndo2db_stmt_bind_short_str[13][BIND_SHORT_STRING_LENGTH];
+static char ndo2db_stmt_bind_long_str[2][BIND_LONG_STRING_LENGTH];
 /** Static storage for binding metadata. */
 static unsigned long ndo2db_stmt_bind_length[13];
 static my_bool ndo2db_stmt_bind_is_null[4];
@@ -932,6 +955,9 @@ static int ndo2db_stmt_execute(ndo2db_idi *idi, struct ndo2db_stmt *stmt) {
 	/* Try to connect if we're not connected... */
 	if (!idi->dbinfo.connected) {
 		if (ndo2db_db_connect(idi) == NDO_ERROR || !idi->dbinfo.connected) return NDO_ERROR;
+		/* This reprepares and rebinds our statements, but doesn't touch the bound
+		 * buffers, so parameter data will be preserved. (Unless
+		 * mysql_stmt_bind_param() touches the buffers, which it shouldn't...) */
 		ndo2db_db_hello(idi);
 	}
 
@@ -953,103 +979,103 @@ static int ndo2db_stmt_execute(ndo2db_idi *idi, struct ndo2db_stmt *stmt) {
  * Pretty standard hash, once based on Ozan Yigit's sdbm() hash but later
  * modified for Nagios to produce better results on our typical data."
  */
-#ifdef NDO2DB_ORIGINAL_OBJECT_HASH
-#define NDO2DB_OBJECT_HASHPRIME 1
-#else
 #define NDO2DB_OBJECT_HASHPRIME 509
-#endif
+#define NDO2DB_OBJECT_HASHSEED 0x123 /* "magic" (there is probably a better seed...) */
+
+#define ACUMULATE_HASH(p, h) \
+	while (*p) h = *p++ + h * NDO2DB_OBJECT_HASHPRIME
 
 /**
  * Calculates an object's hash value.
+ * @param n1 Object first name (non-null).
+ * @param n2 Object second name (non-null).
+ * @param size Hash table size.
  * @return A hash value mod size based on the concatenation of n1 and n2.
  */
-inline static int ndo2db_obj_hash(const char *n1, const char *n2, unsigned size) {
-#ifdef NDO2DB_ORIGINAL_OBJECT_HASH
-	unsigned h = 0;
-#else
-	unsigned h = 0x123; /* "magic" (there is probably a better seed...) */
-#endif
+inline static unsigned ndo2db_obj_hash(const char *n1, const char *n2,
+		unsigned size) {
+	unsigned h = NDO2DB_OBJECT_HASHSEED;
 
-	while (*n1) h = *n1++ + h * NDO2DB_OBJECT_HASHPRIME;
-	if (n2) while (*n2) h = *n2++ + h * NDO2DB_OBJECT_HASHPRIME;
+	ACUMULATE_HASH(n1, h);
+	ACUMULATE_HASH(n2, h);
 
 	return h % size;
 }
 
 
 /**
- * Compares two objects' hash data, ordered by: object_type, name1, name2.
+ * Compares two objects' hash data, ordered by: type, name1, name2.
  * @return 0 if a == b; >0 if a > b; <0 if a < b.
  * @param at Object a type.
- * @param a1 Object a name1.
- * @param a2 Object a name2.
+ * @param a1 Object a name1 (non-null).
+ * @param a2 Object a name2 (non-null).
  * @param bt Object b type.
- * @param b1 Object b name1.
- * @param b2 Object b name2.
+ * @param b1 Object b name1 (non-null).
+ * @param b2 Object b name2 (non-null).
  */
-inline static int ndo2db_compare_obj_hashdata(const int at, const char *a1,
+inline static int ndo2db_obj_compare(const int at, const char *a1,
 		const char *a2, const int bt, const char *b1, const char *b2) {
 	int result;
 
-	/* First compare by object type. */
-	if ((result = at - bt) != 0) return result;
-	/* Compare by first name (our callers assure these are non-null). */
-	if ((result = strcmp(a1, b1)) != 0) return result;
-	/* Compare by second name if all else is equal. */
-	return (!a2 && !b2) ? 0
-			: (!a2) ? +1 /* NULL > non-null... */
-			: (!b2) ? -1 /* non-null < NULL... */
-			: strcmp(a2, b2);
+	return
+			/* First compare by object type. */
+			((result = at - bt) != 0) ? result
+			/* Compare by first name. */
+			: ((result = strcmp(a1, b1)) != 0) ? result
+			/* Compare by second name if all else is equal.
+			 * Sidestep strcmp() for the common case where both second names are
+			 * empty (everything except services). */
+			: (!*a2 && !*b2) ? 0
+			/* Sidestep strcmp() for the somewhat common case where second names are
+			 * not equal by the first character (unsigned char per IEEE 1003.1-2004).
+			 * The performance effect of these checks needs to be better measured. */
+// 			: ((result = (int)*(unsigned char *)a2 - (int)*(unsigned char) *b2) != 0) ? result
+			: strcmp(a2, b2)
+	;
 }
 
 
 /**
  * Fetches an existing object id from the cache.
- * @param idi Input data and DB connection info.
+ * @note This is only called by ndo2db_find_obj() which is only called by
+ * ndo2db_get_obj_id_with_insert() which normalizes null names to empty.
  * @param type ndo2db object type code.
- * @param name1 Object name1.
- * @param name2 Object name2.
+ * @param name1 Object name1 (non-null).
+ * @param name2 Object name2 (non-null).
  * @param object_id Object id output.
  * @return NDO_OK with the object id in *object_id if an object was found,
  * otherwise an error code (usually NDO_ERROR) and *object_id = 0.
  */
-static int ndo2db_get_cached_obj_id(ndo2db_idi *idi, int type,
-		const char *name1, const char *name2, unsigned long *object_id) {
-	ndo2db_dbobject *curr;
-	int h;
-	int i;
+static int ndo2db_lookup_obj(int type, const char *name1, const char *name2,
+		unsigned long *object_id) {
+	struct ndo2db_object *curr;
+	unsigned h;
+	unsigned i;
 
-	/* ndo2db_get_cached_obj_id() is only called by ndo2db_get_obj_id() which is
-	 * only called by ndo2db_get_obj_id_with_insert() which normalizes empty
-	 * names: name1 is non-null; name2 is null or non-empty. */
-
-#ifdef NDO2DB_DEBUG_CACHING
-	printf("OBJECT LOOKUP: type=%d, name1=%s, name2=%s\n",
-			type, name1, (name2 ? name2 : "NULL"));
-#endif
-
-	if (!idi->dbinfo.object_hashlist) {
+	if (!ndo2db_objects) {
 		*object_id = 0;
 		return NDO_ERROR;
 	}
 
-	h = ndo2db_obj_hash(name1, name2, NDO2DB_OBJECT_HASHSLOTS);
-
-	for (curr = idi->dbinfo.object_hashlist[h], i = 0; curr; curr = curr->nexthash, ++i) {
-		int c = ndo2db_compare_obj_hashdata(
-				curr->object_type, curr->name1, curr->name2,
-				type, name1, name2);
+	h = ndo2db_obj_hash(name1, name2, ndo2db_objects_size);
 #ifdef NDO2DB_DEBUG_CACHING
-		printf("OBJECT LOOKUP LOOPING [%d][%d]: type=%d, id=%lu, name1=%s, name2=%s, c=%d\n",
-				h, i, curr->object_type, curr->object_id,
-				curr->name1, (curr->name2 ? curr->name2 : "NULL"), c);
+	printf("OBJECT LOOKUP: type=%d, name1=%s, name2=%s, h=%u\n",
+			type, name1, name2, h);
+#endif
+
+	for (curr = ndo2db_objects[h], i = 0; curr; curr = curr->next, ++i) {
+		int c = ndo2db_obj_compare(
+				curr->type, curr->name1, curr->name2, type, name1, name2);
+#ifdef NDO2DB_DEBUG_CACHING
+		printf("OBJECT LOOKUP LOOPING [%u]: id=%lu, type=%d, name1=%s, name2=%s, c=%d\n",
+				i, curr->id, curr->type, curr->name1, curr->name2, c);
 #endif
 		if (c == 0) {
 			/* We have a match! */
 #ifdef NDO2DB_DEBUG_CACHING
 			printf("OBJECT CACHE HIT\n");
 #endif
-			*object_id = curr->object_id;
+			*object_id = curr->id;
 			return NDO_OK;
 		}
 		else if (c < 0) {
@@ -1069,63 +1095,59 @@ static int ndo2db_get_cached_obj_id(ndo2db_idi *idi, int type,
 
 /**
  * Adds an entry to the object cache.
- * @param idi Input data and DB connection info.
+ * @note This is only called by ndo2db_load_obj_cache() and
+ * ndo2db_get_obj_id_with_insert() which normalize null names to empty.
  * @param type ndo2db object type code.
- * @param name1 Object name1.
- * @param name2 Object name2.
+ * @param name1 Object name1 (non-null).
+ * @param name2 Object name2 (non-null).
  * @param object_id Object id.
  * @return NDO_OK with the object id in *object_id if an object was found,
  * otherwise an error code (usually NDO_ERROR) and *object_id = 0.
  */
-static int ndo2db_add_cached_obj_id(ndo2db_idi *idi, int type,
-		const char *name1, const char *name2, unsigned long object_id) {
-	ndo2db_dbobject *curr;
-	ndo2db_dbobject *prev;
-	ndo2db_dbobject *new;
-	int h;
-	int i;
-
-	/* ndo2db_add_cached_obj_id() is only called by ndo2db_load_obj_cache() and
-	 * ndo2db_get_obj_id_with_insert() which normalize empty names:
-	 * name1 is non-null; name2 is null or non-empty. */
+static int ndo2db_cache_obj(int type, const char *name1, const char *name2,
+		unsigned long object_id) {
+	struct ndo2db_object *curr;
+	struct ndo2db_object *prev;
+	struct ndo2db_object *new;
+	unsigned i;
+	unsigned h = ndo2db_obj_hash(name1, name2, ndo2db_objects_size);
 
 #ifdef NDO2DB_DEBUG_CACHING
-	printf("OBJECT CACHE ADD: type=%d, id=%lu, name1=%s, name2=%s\n",
-			type, object_id, name1, (name2 ? name2 : "NULL"));
+	printf("OBJECT CACHE ADD: id=%lu, type=%d, name1=%s, name2=%s, h=%u\n",
+			object_id, type, name1, name2, h);
 #endif
 
 	/* Initialize the hash list if needed. */
-	if (!idi->dbinfo.object_hashlist) {
-		idi->dbinfo.object_hashlist = calloc(NDO2DB_OBJECT_HASHSLOTS,
-				sizeof(ndo2db_dbobject *));
-		if (!idi->dbinfo.object_hashlist) return NDO_ERROR;
+	if (!ndo2db_objects) {
+		ndo2db_objects = calloc(NDO2DB_OBJECT_HASHSLOTS,
+				sizeof(struct ndo2db_object *));
+		if (!ndo2db_objects) return NDO_ERROR;
+		ndo2db_objects_size = NDO2DB_OBJECT_HASHSLOTS;
+		ndo2db_objects_count = 0;
+		ndo2db_objects_collisions = 0;
 	}
 
 	/* Construct our new object. */
-	new = malloc(sizeof(ndo2db_dbobject));
+	new = malloc(sizeof(struct ndo2db_object));
 	if (!new) return NDO_ERROR;
-	new->object_type = type;
-	new->object_id = object_id;
+	new->type = type;
+	new->id = object_id;
 	new->name1 = strdup(name1);
-	new->name2 = name2 ? strdup(name2) : NULL;
+	new->name2 = strdup(name2);
 	/* Maintain our invariants. */
-	if (!new->name1 || (name2 && !new->name2)) {
+	if (!new->name1 || !new->name2) {
 		free(new->name1), free(new->name2), free(new);
 		return NDO_ERROR;
 	}
 
-	h = ndo2db_obj_hash(new->name1, new->name2, NDO2DB_OBJECT_HASHSLOTS);
-
-	for (prev = NULL, curr = idi->dbinfo.object_hashlist[h], i = 0;
+	for (prev = NULL, curr = ndo2db_objects[h], i = 0;
 			curr;
-			prev = curr, curr = curr->nexthash, ++i) {
-		int c = ndo2db_compare_obj_hashdata(
-				curr->object_type, curr->name1, curr->name2,
-				new->object_type, new->name1, new->name2);
+			prev = curr, curr = curr->next, ++i) {
+		int c = ndo2db_obj_compare(
+				curr->type, curr->name1, curr->name2, type, name1, name2);
 #ifdef NDO2DB_DEBUG_CACHING
-		printf("OBJECT ADD LOOPING [%d][%d]: type=%d, id=%lu, name1=%s, name2=%s, c=%d\n",
-				h, i, curr->object_type, curr->object_id,
-				curr->name1, (curr->name2 ? curr->name2 : "NULL"), c);
+		printf("OBJECT ADD LOOPING [%u]: id=%lu, type=%d, name1=%s, name2=%s, c=%d\n",
+				i, curr->id, curr->type, curr->name1, curr->name2, c);
 #endif
 		if (c == 0) {
 			/* There shouldn't be duplicates, and adding duplicates would hide
@@ -1145,9 +1167,12 @@ static int ndo2db_add_cached_obj_id(ndo2db_idi *idi, int type,
 		}
 	}
 
-	if (prev) prev->nexthash = new;
-	else idi->dbinfo.object_hashlist[h] = new;
-	new->nexthash = curr;
+	++ndo2db_objects_count;
+	if (ndo2db_objects[h]) ++ndo2db_objects_collisions;
+
+	if (prev) prev->next = new;
+	else ndo2db_objects[h] = new;
+	new->next = curr;
 
 	return NDO_OK;
 }
@@ -1155,48 +1180,48 @@ static int ndo2db_add_cached_obj_id(ndo2db_idi *idi, int type,
 
 /**
  * Fetches an existing object id from the cache or DB.
+ * @note This is only called by ndo2db_get_obj_id_with_insert() which
+ * normalizes null names to empty.
  * @param idi Input data and DB connection info.
  * @param type ndo2db object type code.
- * @param name1 Object name1.
- * @param name2 Object name2.
+ * @param name1 Object name1 (non-null).
+ * @param name2 Object name2 (non-null).
  * @param object_id Object id output.
  * @return NDO_OK with the object id in *object_id, otherwise an error code
  * (usually NDO_ERROR) and *object_id = 0.
  */
-static int ndo2db_get_obj_id(ndo2db_idi *idi, int type,
-		const char *name1, const char *name2, unsigned long *object_id) {
+static int ndo2db_find_obj(ndo2db_idi *idi, int type,	const char *name1,
+		const char *name2, unsigned long *object_id) {
 	/* Select the statement and binds to use. */
-	const enum ndo2db_stmt_id stmt_id = (name2 && *name2) /* name2 not empty... */
+	const enum ndo2db_stmt_id stmt_id = (*name2) /* name2 not empty : empty... */
 			? NDO2DB_STMT_GET_OBJ_ID : NDO2DB_STMT_GET_OBJ_ID_N2_NULL;
 	struct ndo2db_stmt *stmt = ndo2db_stmts + stmt_id;
 	MYSQL_BIND *binds = stmt->param_binds;
 	MYSQL_BIND *result = stmt->result_binds + 0;
 
-	*object_id = 0;
-
-	/* ndo2db_get_obj_id() is only called by ndo2db_get_obj_id_with_insert()
-	 * which normalizes empty names, we don't need to repeat that here.
-	 * name1 is non-null; name2 is null or non-empty. */
-
 	/* See if the object is already cached. */
-	if (ndo2db_get_cached_obj_id(idi, type, name1, name2, object_id) == NDO_OK) {
+	if (ndo2db_lookup_obj(type, name1, name2, object_id) == NDO_OK) {
 		return NDO_OK;
 	}
 
-	/* Nothing cached so query. Copy input data to the parameter buffers... */
+	/* Nothing cached so query. Copy input data to the parameter buffers. */
 	COPY_TO_BOUND_CHAR(type, binds[0]);
 	COPY_BIND_STRING_NOT_EMPTY(name1, binds[1]);
-	if (name2) COPY_BIND_STRING_OR_NULL(name2, binds[2]);
-	/* ...execute the statement... */
+	/* For the DB, empty name2 is NULL to keep in line with existing data. The
+	 * "name2 IS NULL" statement doesn't have a name2 parameter. */
+	if (*name2) COPY_BIND_STRING_NOT_EMPTY(name2, binds[2]);
+	/* Execute the statement... */
 	CHK_OK(ndo2db_stmt_execute(idi, stmt));
 	/* ...and fetch the first (only) result row to bound storage. */
 	if (mysql_stmt_fetch(stmt->handle) || *result->error || *result->is_null) {
 		return NDO_ERROR;
 	}
 
-	/** We have a good object_id by all our meaasures if we made it here. */
+	/* We have a good object_id by all our meaasures if we made it here. */
 	*object_id = COPY_FROM_BIND(unsigned long, *result, unsigned int);
-	return NDO_OK;
+
+	/* Cache the object for later. */
+	return ndo2db_cache_obj(type, name1, name2, *object_id);
 }
 
 
@@ -1219,25 +1244,28 @@ int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int type,
 
 	/* There is no valid objecct with an empty first name, no name means no id. */
 	if (!name1 || !*name1) return NDO_OK;
-	/* name2 can be NULL in the DB, and we previously converted empty to NULL
-	 * before inseting, so lets keep consistent with existing data. */
-	if (name2 && !*name2) name2 = NULL;
-
 	/* See if the object already exists. */
-	if (ndo2db_get_obj_id(idi, type, name1, name2, object_id) == NDO_OK) {
+	/* name2 can be NULL in the DB. We previously converted empty to NULL before
+	 * inseting to the DB, and for object caching. We'll keep consistent with
+	 * earlier handling for the DB, but convert NULL to empty for object
+	 * caching. This makes hashing and comparing local objects simpler. */
+	if (ndo2db_find_obj(idi, type, name1, name2 ? name2 : "", object_id) == NDO_OK) {
 		return NDO_OK;
 	}
 
-	/* No such object so insert. Copy input data to the parameter buffers... */
+	/* No such object so insert. Copy input data to the parameter buffers. */
 	COPY_TO_BOUND_CHAR(type, binds[0]);
 	COPY_BIND_STRING_NOT_EMPTY(name1, binds[1]);
+	/* For the DB we make empty name2 NULL to keep in line with existing data. */
+	if (name2 && !*name2) name2 = NULL;
 	COPY_BIND_STRING_OR_NULL(name2, binds[2]);
-	/* ...execute the statement and grab the inserted object id if successful. */
+	/* Execute the statement and grab the inserted object id if successful. */
 	CHK_OK(ndo2db_stmt_execute(idi, stmt));
 	*object_id = (unsigned long)mysql_stmt_insert_id(stmt->handle);
 
-	/* Cache the object id for future reference. */
-	return ndo2db_add_cached_obj_id(idi, type, name1, name2, *object_id);
+	/* Cache the object for later.
+	 * Don't forget our empty name convention for the cache! */
+	return ndo2db_cache_obj(type, name1, name2 ? name2 : "", *object_id);
 }
 
 
@@ -1256,6 +1284,8 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 	int status;
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_GET_OBJ_IDS;
 	MYSQL_BIND *results = stmt->result_binds;
+	my_ulonglong num_rows = 0;
+	size_t num_slots = 0;
 
 	/* Find all the object definitions we already have */
 	CHK_OK(ndo2db_stmt_execute(idi, stmt));
@@ -1268,6 +1298,19 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 		return NDO_ERROR;
 	}
 
+	/* Calculate how many hash slots we want. Twice the number of object may not
+	 * be optimal for hash distribution or memory usage reasons. */
+	num_rows = mysql_stmt_num_rows(stmt->handle);
+	num_slots = (size_t)num_rows * 2;
+	num_slots = (num_slots > NDO2DB_OBJECT_HASHSLOTS)
+			? num_slots : NDO2DB_OBJECT_HASHSLOTS;
+
+	/* Free and reallocate the cache, we're rebuilding from scratch. */
+	ndo2db_free_obj_cache();
+	ndo2db_objects = calloc(num_slots, sizeof(struct ndo2db_object *));
+	if (!ndo2db_objects) return NDO_ERROR;
+	ndo2db_objects_size = num_slots;
+
 	/* Process each row of the result set until an error or end of data. */
 	while ((status = mysql_stmt_fetch(stmt->handle)) == 0) {
 
@@ -1275,18 +1318,16 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 		int type = COPY_FROM_BIND(int, results[1], signed char);
 		/* name1 shouldn't be NULL, but check for thoroughness. */
 		const char *name1 = (*results[2].is_null) ? NULL : results[2].buffer;
-		/* name2 can be NULL but should never empty... */
-		const char *name2 = (*results[3].is_null) ? NULL : results[3].buffer;
+		/* name2 can be NULL in the DB, and we previously converted empty to NULL
+		 * before inserting, but we convert null to empty for object caching. */
+		const char *name2 = (*results[3].is_null) ? "" : results[3].buffer;
 
 		/* There is no valid object with an empty first name, there shuoldn't be
 		 * one in the DB, and there wont be one in the cache. */
 		if (!name1 || !*name1) continue;
-		/* name2 can be NULL in the DB, and we previously converted empty to NULL
-		 * before inseting, so lets keep consistent with existing data. */
-		if (name2 && !*name2) name2 = NULL;
 
-		/* Add object to cached list */
-		ndo2db_add_cached_obj_id(idi, type, name1, name2, id);
+		/* Now we're good to cache the object. */
+		ndo2db_cache_obj(type, name1, name2, id);
 	}
 
 	/* Success if we're here because there was no more data. */
@@ -1296,29 +1337,26 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 
 /**
  * Frees resources allocated for the object cache.
- * @param idi Input data and DB connection info.
- * @return Currently NDO_OK in all cases, there are no detectable errors.
  */
-int ndo2db_free_obj_cache(ndo2db_idi *idi) {
+void ndo2db_free_obj_cache(void) {
 
-	if (idi->dbinfo.object_hashlist) {
-		int x = 0;
+	if (ndo2db_objects) {
+		size_t x = 0;
 		for (; x < NDO2DB_OBJECT_HASHSLOTS; ++x) {
-			ndo2db_dbobject *curr = idi->dbinfo.object_hashlist[x];
-			ndo2db_dbobject *next = NULL;
-			for (; curr; curr = next) {
-				next = curr->nexthash;
-				free(curr->name1);
-				free(curr->name2);
-				free(curr);
+			struct ndo2db_object *curr;
+			struct ndo2db_object *next;
+			for (curr = ndo2db_objects[x]; curr; curr = next) {
+				next = curr->next;
+				free(curr->name1), free(curr->name2), free(curr);
 			}
 		}
 
-		free(idi->dbinfo.object_hashlist);
-		idi->dbinfo.object_hashlist = NULL;
+		free(ndo2db_objects);
+		ndo2db_objects = NULL;
+		ndo2db_objects_size = 0;
+		ndo2db_objects_count = 0;
+		ndo2db_objects_collisions = 0;
 	}
-
-	return NDO_OK;
 }
 
 

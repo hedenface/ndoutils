@@ -51,10 +51,8 @@ int ndo2db_stmt_free_stmts(void);
 int ndo2db_load_obj_cache(ndo2db_idi *idi);
 /**
  * Frees resources allocated for the object cache.
- * @param idi Input data and DB connection info.
- * @return Currently NDO_OK in all cases, there are no detectable errors.
  */
-int ndo2db_free_obj_cache(ndo2db_idi *idi);
+void ndo2db_free_obj_cache(void);
 /**
  * Sets all objects as inactive in the DB for the current instance.
  */

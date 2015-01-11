@@ -49,20 +49,11 @@
 
 /***************** structures *****************/
 
-typedef struct ndo2db_mbuf_struct{
+typedef struct ndo2db_mbuf_struct {
 	int used_lines;
 	int allocated_lines;
 	char **buffer;
-        }ndo2db_mbuf;
-
-
-typedef struct ndo2db_dbobject_struct{
-	char *name1;
-	char *name2;
-	int object_type;
-	unsigned long object_id;
-	struct ndo2db_dbobject_struct *nexthash;
-        }ndo2db_dbobject;
+} ndo2db_mbuf;
 
 
 typedef struct ndo2db_dbconninfo {
@@ -101,7 +92,6 @@ typedef struct ndo2db_dbconninfo {
 	time_t last_table_trim_time;
 	time_t last_logentry_time;
 	char *last_logentry_data;
-	ndo2db_dbobject **object_hashlist;
 } ndo2db_dbconninfo;
 
 
@@ -137,7 +127,6 @@ typedef struct ndo2db_input_data_info_struct{
 
 /*************** misc definitions **************/
 #define NDO2DB_INPUT_BUFFER                             1024
-#define NDO2DB_OBJECT_HASHSLOTS                         4096
 
 /** Default table trim interval in seconds. */
 #define NDO2DB_DEFAULT_TABLE_TRIM_INTERVAL              3600

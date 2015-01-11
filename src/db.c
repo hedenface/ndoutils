@@ -165,7 +165,6 @@ int ndo2db_db_init(ndo2db_idi *idi) {
 	idi->dbinfo.last_table_trim_time = 0;
 	idi->dbinfo.last_logentry_time = 0;
 	idi->dbinfo.last_logentry_data = NULL;
-	idi->dbinfo.object_hashlist = NULL;
 
 	/* Initialize our low level DB interface. */
 	if (!mysql_init(&idi->dbinfo.mysql_conn)) {
@@ -187,7 +186,7 @@ int ndo2db_db_deinit(ndo2db_idi *idi) {
 	for (x = 0; x < NDO2DB_NUM_DBTABLES; x++) my_free(ndo2db_db_tablenames[x]);
 
 	/* Free our object id cache. */
-	ndo2db_free_obj_cache(idi);
+	ndo2db_free_obj_cache();
 
 	return NDO_OK;
 }
