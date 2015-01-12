@@ -500,43 +500,6 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 
 
 /**
- * Declares standard handler data: type, flags, attr, and tstamp.
- */
-#define DECLARE_STD_DATA \
-	int type, flags, attr; \
-	struct timeval tstamp
-
-/**
- * Converts standard handler data from idi->buffered_input.
- */
-#define CONVERT_STD_DATA \
-	ndo2db_convert_standard_data_elements(idi, &type, &flags, &attr, &tstamp)
-
-/**
- * Declares and converts standard handler data.
- */
-#define DECLARE_CONVERT_STD_DATA \
-	DECLARE_STD_DATA; \
-	CONVERT_STD_DATA
-
-/**
- * Returns ND_OK if standard handler data tstamp older than most recent realtime
- * data.
- */
-#define RETURN_OK_IF_STD_DATA_TOO_OLD \
-	if (tstamp.tv_sec < idi->dbinfo.latest_realtime_data_time) return NDO_OK
-
-/**
- * Declares and converts standard handler data, returns if we've seen more
- * recent realtime data.
- */
-#define DECLARE_CONVERT_STD_DATA_RETURN_OK_IF_TOO_OLD \
-	DECLARE_CONVERT_STD_DATA; \
-	RETURN_OK_IF_STD_DATA_TOO_OLD
-
-
-
-/**
  * Copies a scalar to a bound buffer, casting as needed.
  *
  * @param v Source value.
@@ -648,6 +611,157 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 		int status_ = (expression); \
 		if (status_ != NDO_OK) status = status_; \
 	} while (0)
+
+
+
+/** Expands to a checked "var = strto;" conversion. */
+#define CHECKED_STRING_TO(strto, str, var) \
+	char *endptr = NULL; \
+	if (!str || !*str) { \
+		var = 0; \
+		return NDO_ERROR; \
+	} \
+	errno = 0; \
+	var = strto; \
+	return (errno || endptr == str) ? NDO_ERROR : NDO_OK
+
+inline static int ndo_checked_strtod(const char *str, double *d) {
+	CHECKED_STRING_TO(strtod(str, &endptr), str, *d);
+}
+
+inline static int ndo_checked_strtoul(const char *str, unsigned long *ul) {
+	CHECKED_STRING_TO(strtoul(str, &endptr, 10), str, *ul);
+}
+
+inline static int ndo_checked_strtol(const char *str, long *l) {
+	CHECKED_STRING_TO(strtol(str, &endptr, 10), str, *l);
+}
+
+
+/** Expands to a checked "var = (vt)strtoul(...);" conversion. */
+#define CHECKED_STRING_TO_UNSIGNED(vt, v, max) \
+	unsigned long ul; \
+	int st = ndo_checked_strtoul(str, &ul); \
+	v = (unsigned vt)ul; \
+	return (st != NDO_OK) ? st : (ul <= max) ? NDO_OK : NDO_ERROR
+
+/** Expands to a checked "var = (vt)strtol(...);" conversion. */
+#define CHECKED_STRING_TO_SIGNED(vt, v, min, max) \
+	long l; \
+	int st = ndo_checked_strtol(str, &l); \
+	v = (signed vt)l; \
+	return (st != NDO_OK) ? st : (min <= l && l <= max) ? NDO_OK : NDO_ERROR
+
+inline static int ndo_checked_strtouint(const char *str, unsigned int *u) {
+	CHECKED_STRING_TO_UNSIGNED(int, *u, UINT_MAX);
+}
+
+inline static int ndo_checked_strtoint(const char *str, signed int *i) {
+	CHECKED_STRING_TO_SIGNED(int, *i, INT_MIN, INT_MAX);
+}
+
+inline static int ndo_checked_strtoshort(const char *str, signed short *s) {
+	CHECKED_STRING_TO_SIGNED(short, *s, SHRT_MIN, SHRT_MAX);
+}
+
+inline static int ndo_checked_strtoschar(const char *str, signed char *c) {
+	CHECKED_STRING_TO_SIGNED(char, *c, CHAR_MIN, CHAR_MAX);
+}
+
+
+/**
+ * Converts a string in decimal "seconds[.useconds]" format to a timeval. If
+ * present, useconds should be six digits with leading zeroes if needed.
+ * @param str Source string.
+ * @param tv Destination timeval.
+ * @return NDO_ERROR if str is empty or there was a conversion or format error.
+ * @post All parts of tv are set to 0 or converted values.
+ */
+static int ndo_checked_strtotv(const char *str, struct timeval *tv) {
+	char *endptr;
+	unsigned long ul;
+	int status;
+
+	if (!str || !*str) {
+		tv->tv_sec = 0;
+		tv->tv_usec = 0;
+		return NDO_ERROR;
+	}
+
+	endptr = NULL;
+	errno = 0;
+	ul = strtoul(str, &endptr, 10);
+	/* We're okay if there is no errno set, and the whole string was converted
+	 * or it was converted up to a '.' with the remaining part a usecs string. */
+	status = (errno || (*endptr != '\0' && *endptr != '.')) ? NDO_ERROR : NDO_OK;
+
+	tv->tv_sec = (time_t)ul;
+
+	/* We're done if there was an error in conversion or no usecs part. */
+	if (status != NDO_OK || *endptr == '\0') {
+		tv->tv_usec = 0;
+		return status;
+	}
+
+	str = endptr + 1;
+	endptr = NULL;
+	errno = 0;
+	ul = strtoul(str, &endptr, 10);
+	/* Okay if usecs string converted completely without error. */
+	status = (errno || *endptr != '\0') ? NDO_ERROR : NDO_OK;
+
+	tv->tv_usec = (suseconds_t)ul;
+
+	return status;
+}
+
+
+/**
+ * Converts standard data elements for an NDO protocol item. All conversions
+ * are attempted even if one fails.
+ * @param idi Input data and DB info.
+ * @param type Output item type.
+ * @param flags Output item flags.
+ * @param attr Output item attributes.
+ * @param tstamp Output item timestamp.
+ * @return The error status of the last conversion (in argument order) to fail,
+ * or NDO_OK.
+ * @post All data are set to 0 or converted values.
+ */
+static int ndo2db_convert_standard_data(ndo2db_idi *idi, int *type, int *flags,
+		int *attr, struct timeval *tstamp) {
+	char **bi = idi->buffered_input;
+	int status = NDO_OK;
+
+	SAVE_ERR(status, ndo_checked_strtoint(bi[NDO_DATA_TYPE], type));
+	SAVE_ERR(status, ndo_checked_strtoint(bi[NDO_DATA_FLAGS], flags));
+	SAVE_ERR(status, ndo_checked_strtoint(bi[NDO_DATA_ATTRIBUTES], attr));
+	SAVE_ERR(status, ndo_checked_strtotv(bi[NDO_DATA_TIMESTAMP], tstamp));
+
+	return status;
+}
+
+/** Declares standard handler data: type, flags, attr, and tstamp. */
+#define DECLARE_STD_DATA \
+	int type, flags, attr; struct timeval tstamp
+
+/** Converts standard handler data from idi->buffered_input. */
+#define CONVERT_STD_DATA \
+	ndo2db_convert_standard_data(idi, &type, &flags, &attr, &tstamp)
+
+/** Declares and converts standard handler data. */
+#define DECLARE_CONVERT_STD_DATA \
+	DECLARE_STD_DATA; CONVERT_STD_DATA
+
+/** Returns ND_OK if standard handler data tstamp older than most recent
+ * realtime data. */
+#define RETURN_OK_IF_STD_DATA_TOO_OLD \
+	if (tstamp.tv_sec < idi->dbinfo.latest_realtime_data_time) return NDO_OK
+
+/** Declares and converts standard handler data, returns if we've seen more
+ * recent realtime data. */
+#define DECLARE_CONVERT_STD_DATA_RETURN_OK_IF_TOO_OLD \
+	DECLARE_CONVERT_STD_DATA; RETURN_OK_IF_STD_DATA_TOO_OLD
 
 
 
@@ -1121,25 +1235,25 @@ static int ndo2db_stmt_process_buffered_input(
 				COPY_TO_BOUND_CHAR(idi->current_object_config_type, *b);
 			}
 			else {
-				ndo2db_strtoschar(bi[p->bi_index], b->buffer);
+				ndo_checked_strtoschar(bi[p->bi_index], b->buffer);
 			}
 			break;
 
 		case BIND_TYPE_I16:
-			ndo2db_strtoshort(bi[p->bi_index], b->buffer);
+			ndo_checked_strtoshort(bi[p->bi_index], b->buffer);
 			break;
 
 		case BIND_TYPE_I32:
-			ndo2db_strtoint(bi[p->bi_index], b->buffer);
+			ndo_checked_strtoint(bi[p->bi_index], b->buffer);
 			break;
 
 		case BIND_TYPE_U32:
 		case BIND_TYPE_FROM_UNIXTIME: /* Timestamps are bound as unsigned int. */
-			ndo2db_strtouint(bi[p->bi_index], b->buffer);
+			ndo_checked_strtouint(bi[p->bi_index], b->buffer);
 			break;
 
 		case BIND_TYPE_DOUBLE:
-			ndo2db_strtod(bi[p->bi_index], b->buffer);
+			ndo_checked_strtod(bi[p->bi_index], b->buffer);
 			break;
 
 		case BIND_TYPE_SHORT_STRING:
@@ -1735,8 +1849,8 @@ static int ndo2db_stmt_save_hs_check(
 				cname, NULL, &command_id);
 	}
 
-	ndo2db_strtotv(bi[NDO_DATA_STARTTIME], &start_time);
-	ndo2db_strtotv(bi[NDO_DATA_ENDTIME], &end_time);
+	ndo_checked_strtotv(bi[NDO_DATA_STARTTIME], &start_time);
+	ndo_checked_strtotv(bi[NDO_DATA_ENDTIME], &end_time);
 
 	/* Covert/copy our input data to bound parameter storage. */
 	COPY_TO_BOUND_UINT(object_id, binds[0]);
@@ -2458,9 +2572,9 @@ int ndo2db_stmt_handle_timeperiodefinition(ndo2db_idi *idi) {
 		if (!(start = strtok(NULL, "-")) || !*start) continue;
 		if (!(end = strtok(NULL, "\0")) || !*end) continue;
 		/* Convert and copy our input data to bound parameter storage... */
-		ndo2db_strtoschar(day, binds[1].buffer);
-		ndo2db_strtouint(start, binds[2].buffer);
-		ndo2db_strtouint(end, binds[3].buffer);
+		ndo_checked_strtoschar(day, binds[1].buffer);
+		ndo_checked_strtouint(start, binds[2].buffer);
+		ndo_checked_strtouint(end, binds[3].buffer);
 		/* ...and save the timerange. */
 		SAVE_ERR(status, ndo2db_stmt_execute(idi, stmt));
 	}
@@ -2561,7 +2675,7 @@ int ndo2db_stmt_handle_contactdefinition(ndo2db_idi *idi) {
 		if (!(num = strtok(mbuf->buffer[i], ":")) || !*num) continue;
 		if (!(adr = strtok(NULL, "\0")) || !*adr) continue;
 		/* Convert and copy our input data to bound parameter storage... */
-		ndo2db_strtoshort(num, binds[1].buffer);
+		ndo_checked_strtoshort(num, binds[1].buffer);
 		COPY_BIND_STRING_NOT_EMPTY(adr, binds[2]);
 		/* ...and save the address. */
 		SAVE_ERR(status, ndo2db_stmt_execute(idi, stmt));
@@ -2631,7 +2745,7 @@ int ndo2db_stmt_save_customvariables(ndo2db_idi *idi, unsigned long o_id) {
 		/* Rest of the input string is the var value. */
 		value = strtok(NULL, "\n");
 
-		ndo2db_strtoschar(modified, binds[2].buffer);
+		ndo_checked_strtoschar(modified, binds[2].buffer);
 		COPY_BIND_STRING_NOT_EMPTY(name, binds[3]);
 		COPY_BIND_STRING_OR_EMPTY(value, binds[4]);
 
@@ -2668,7 +2782,7 @@ int ndo2db_stmt_save_customvariable_status(ndo2db_idi *idi, unsigned long o_id,
 		/* Rest of the input string is the var value. */
 		value = strtok(NULL, "\n");
 
-		ndo2db_strtoschar(modified, binds[2].buffer);
+		ndo_checked_strtoschar(modified, binds[2].buffer);
 		COPY_BIND_STRING_NOT_EMPTY(name, binds[3]);
 		COPY_BIND_STRING_OR_EMPTY(value, binds[4]);
 
