@@ -77,11 +77,6 @@ static size_t ndo2db_objects_collisions;
 
 
 
-/** Short string buffer length. */
-#define BIND_SHORT_STRING_LENGTH 256
-/** Long string buffer length. */
-#define BIND_LONG_STRING_LENGTH 65536
-
 /** Prepared statement identifiers/indices and count. */
 enum ndo2db_stmt_id {
 	/** For when we want to say 'no statement'. The entry in ndo2db_stmts is not
@@ -323,18 +318,77 @@ struct ndo2db_stmt {
 static struct ndo2db_stmt ndo2db_stmts[NDO2DB_NUM_STMTS];
 
 
+
+/** Short string buffer length. */
+#define BIND_SHORT_STRING_LENGTH 256
+/** Long string buffer length. */
+#define BIND_LONG_STRING_LENGTH 65536
+
 /** Static storage for bound parameters and results. */
-static signed char ndo2db_stmt_bind_char[18];
+static signed char ndo2db_stmt_bind_char[27];
 static signed short ndo2db_stmt_bind_short[4];
-static unsigned int ndo2db_stmt_bind_int[2];
+static signed int ndo2db_stmt_bind_int[2];
 static unsigned int ndo2db_stmt_bind_uint[14];
-static double ndo2db_stmt_bind_double[5];
+static double ndo2db_stmt_bind_double[9];
 static char ndo2db_stmt_bind_short_str[13][BIND_SHORT_STRING_LENGTH];
 static char ndo2db_stmt_bind_long_str[2][BIND_LONG_STRING_LENGTH];
 /** Static storage for binding metadata. */
 static unsigned long ndo2db_stmt_bind_length[13];
 static my_bool ndo2db_stmt_bind_is_null[4];
 static my_bool ndo2db_stmt_bind_error[4];
+
+/** Maximum bound buffer usage counts across all statements. Intended to help
+ * determine the number of ndo2db_stmt_bind_* buffers needed, and check that
+ * availability is not exceeded. */
+static size_t ndo2db_stmt_bind_n_char;
+static size_t ndo2db_stmt_bind_n_short;
+static size_t ndo2db_stmt_bind_n_int;
+static size_t ndo2db_stmt_bind_n_uint;
+static size_t ndo2db_stmt_bind_n_double;
+static size_t ndo2db_stmt_bind_n_short_str;
+static size_t ndo2db_stmt_bind_n_long_str;
+static size_t ndo2db_stmt_bind_n_length;
+static size_t ndo2db_stmt_bind_n_is_null;
+static size_t ndo2db_stmt_bind_n_error;
+
+/** Resets maximum bound buffer type usage counts. */
+#define RESET_BOUND_BUFFER_COUNTS \
+	ndo2db_stmt_bind_n_char = 0; \
+	ndo2db_stmt_bind_n_short = 0; \
+	ndo2db_stmt_bind_n_int = 0; \
+	ndo2db_stmt_bind_n_uint = 0; \
+	ndo2db_stmt_bind_n_double = 0; \
+	ndo2db_stmt_bind_n_short_str = 0; \
+	ndo2db_stmt_bind_n_long_str = 0; \
+	ndo2db_stmt_bind_n_length = 0; \
+	ndo2db_stmt_bind_n_is_null = 0; \
+	ndo2db_stmt_bind_n_error = 0
+
+/** Reports maximum and available counts for a bound buffer type. */
+#define REPORT_BOUND_BUFFER_USAGE(msg_pre, type) \
+	do { \
+		size_t array_size = ARRAY_SIZE(ndo2db_stmt_bind_ ## type); \
+		int d = (int)(ndo2db_stmt_bind_n_ ## type) - (int)array_size; \
+		ndo2db_log_debug_info(NDO2DB_DEBUGL_STMT, 0, \
+				"%s: n_%s=%zu %s ARRAY_SIZE(ndo2db_stmt_bind_%s)=%zu, d=%d\n", \
+				msg_pre, #type, ndo2db_stmt_bind_n_ ## type, \
+				((d > 0) ? ">" : (d < 0) ? "<" : "=="), \
+				#type, array_size, d); \
+	} while (0)
+
+/** Reports maximum and available counts for all bound buffer types. */
+#define REPORT_BOUND_BUFFER_USAGES(msg_pre) \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, char); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, short); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, int); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, uint); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, double); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, short_str); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, long_str); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, length); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, is_null); \
+	REPORT_BOUND_BUFFER_USAGE(msg_pre, error) \
+
 
 
 /**
@@ -444,6 +498,7 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 };
 
 
+
 /**
  * Declares standard handler data: type, flags, attr, and tstamp.
  */
@@ -480,6 +535,7 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 	RETURN_OK_IF_STD_DATA_TOO_OLD
 
 
+
 /**
  * Copies a scalar to a bound buffer, casting as needed.
  *
@@ -495,7 +551,6 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 #define COPY_TO_BOUND_INT(v, b) COPY_TO_BIND(v, b, int);
 #define COPY_TO_BOUND_UINT(v, b) COPY_TO_BIND(v, b, unsigned int);
 #define COPY_TO_BOUND_DOUBLE(v, b) COPY_TO_BIND(v, b, double);
-
 
 /**
  * Copies a scalar from a bound buffer, casting as needed.
@@ -566,6 +621,7 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 	} while (0)
 
 
+
 /**
  * Evaluates to the number of elements in an array of known size. Note this is
  * for "type x[N]" with N a compile-time constant, not "type *x".
@@ -608,6 +664,7 @@ int ndo2db_stmt_init_stmts(ndo2db_idi *idi) {
 	ndo_dbuf dbuf;
 	ndo_dbuf_init(&dbuf, 2048);
 	int status = NDO_OK;
+	RESET_BOUND_BUFFER_COUNTS;
 
 	for (i = 0; i < ARRAY_SIZE(ndo2db_stmt_initializers); ++i) {
 		/* Skip any empty initializer slots, there shouldn't be any... */
@@ -619,10 +676,16 @@ int ndo2db_stmt_init_stmts(ndo2db_idi *idi) {
 			syslog(LOG_USER|LOG_ERR, "ndo2db_stmt_initializers[%zu] failed.", i);
 			syslog(LOG_USER|LOG_ERR, "mysql_error: %s", mysql_error(&idi->dbinfo.mysql_conn));
 			ndo2db_stmt_free_stmts();
-			break;
+			goto init_stmts_exit;
 		}
 	}
 
+	/* Report on our bound buffer usage: is it just right, or do we have unused
+	 * buffers? Too few will be logged and returned as an error during binding,
+	 * which will skip this and go straight to init_stmts_exit. */
+	REPORT_BOUND_BUFFER_USAGES("ndo2db_stmt_init_stmts");
+
+init_stmts_exit:
 	ndo_dbuf_free(&dbuf); /* Be sure to free memory we've allocated. */
 	return status;
 }
@@ -633,7 +696,6 @@ int ndo2db_stmt_init_stmts(ndo2db_idi *idi) {
  * @return Currently NDO_OK in all cases.
  */
 int ndo2db_stmt_free_stmts(void) {
-	/* Caller assures idi is non-null. */
 	size_t i;
 
 	for (i = 0; i < NDO2DB_NUM_STMTS; ++i) {
@@ -641,7 +703,10 @@ int ndo2db_stmt_free_stmts(void) {
 		free(ndo2db_stmts[i].param_binds);
 		free(ndo2db_stmts[i].result_binds);
 	}
+
+	/* Reset our statements and usage counters to initial 'null' values. */
 	memset(ndo2db_stmts, 0, sizeof(ndo2db_stmts));
+	RESET_BOUND_BUFFER_COUNTS;
 
 	return NDO_OK;
 }
@@ -701,6 +766,26 @@ static int ndo2db_stmt_print_insert(
 
 
 
+/** Sets a usage counter to the maximum of current and new values. */
+#define UPDATE_BOUND_BUFFER_USAGE(new_count, global_count) \
+	if (new_count > global_count) global_count = new_count
+
+/** Updates global maximum buffer usage for a type, and logs and returns error
+ * if the given count of used bound buffers exceeds the number available. For
+ * use by ndo2db_stmt_bind_params() and ndo2db_stmt_bind_results(). */
+#define CHECK_BOUND_BUFFER_USAGE(num, type) \
+	do { \
+		const size_t array_size = ARRAY_SIZE(ndo2db_stmt_bind_ ## type); \
+		UPDATE_BOUND_BUFFER_USAGE(num, ndo2db_stmt_bind_n_ ## type); \
+		if (num > array_size) { \
+			syslog(LOG_USER|LOG_ERR, \
+					"%s %s=%zu > ARRAY_SIZE(ndo2db_stmt_bind_%s)=%zu", \
+					ndo2db_stmt_names[stmt->id], #num, num, #type, array_size); \
+			return NDO_ERROR; \
+		} \
+	} while (0)
+
+
 /**
  * Allocates, initializes and binds a prepared statment's input parameter
  * bindings. Frees any existing bindings for the statement.
@@ -716,8 +801,8 @@ static int ndo2db_stmt_bind_params(struct ndo2db_stmt *stmt) {
 	size_t n_double = 0;
 	size_t n_short_str = 0;
 	size_t n_long_str = 0;
-	size_t n_len = 0;
-	size_t n_null = 0;
+	size_t n_length = 0;
+	size_t n_is_null = 0;
 
 	/* Allocate our parameter bindings with null values, free any existing. */
 	free(stmt->param_binds);
@@ -767,14 +852,14 @@ static int ndo2db_stmt_bind_params(struct ndo2db_stmt *stmt) {
 			/* s[i] here, s+i would point at the wrong thing. */
 			bind->buffer = ndo2db_stmt_bind_short_str[n_short_str++];
 			bind->buffer_length = BIND_SHORT_STRING_LENGTH;
-			bind->length = ndo2db_stmt_bind_length + n_len++;
+			bind->length = ndo2db_stmt_bind_length + n_length++;
 			break;
 
 		case BIND_TYPE_LONG_STRING:
 			bind->buffer_type = MYSQL_TYPE_STRING;
 			bind->buffer = ndo2db_stmt_bind_long_str[n_long_str++];
 			bind->buffer_length = BIND_LONG_STRING_LENGTH;
-			bind->length = ndo2db_stmt_bind_length + n_len++;
+			bind->length = ndo2db_stmt_bind_length + n_length++;
 			break;
 
 		default:
@@ -785,9 +870,25 @@ static int ndo2db_stmt_bind_params(struct ndo2db_stmt *stmt) {
 		}
 
 		if (stmt->params[i].flags & BIND_MAYBE_NULL) {
-			bind->is_null = ndo2db_stmt_bind_is_null + n_null++;
+			bind->is_null = ndo2db_stmt_bind_is_null + n_is_null++;
 		}
 	}
+
+	/* Check our bound buffer usage is within limits. */
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_STMT, 0, "ndo2db_stmt_bind_params: %s "
+			"n_char=%zu, n_short=%zu, n_int=%zu, n_uint=%zu, n_double=%zu, "
+			"n_short_str=%zu, n_long_str=%zu, n_length=%zu, n_is_null=%zu\n",
+			ndo2db_stmt_names[stmt->id], n_char, n_short, n_int, n_uint, n_double,
+			n_short_str, n_long_str, n_length, n_is_null);
+	CHECK_BOUND_BUFFER_USAGE(n_char, char);
+	CHECK_BOUND_BUFFER_USAGE(n_short, short);
+	CHECK_BOUND_BUFFER_USAGE(n_int, int);
+	CHECK_BOUND_BUFFER_USAGE(n_uint, uint);
+	CHECK_BOUND_BUFFER_USAGE(n_double, double);
+	CHECK_BOUND_BUFFER_USAGE(n_short_str, short_str);
+	CHECK_BOUND_BUFFER_USAGE(n_long_str, long_str);
+	CHECK_BOUND_BUFFER_USAGE(n_length, length);
+	CHECK_BOUND_BUFFER_USAGE(n_is_null, is_null);
 
 	/* Now bind our statement parameters. */
 	return mysql_stmt_bind_param(stmt->handle, stmt->param_binds)
@@ -805,13 +906,13 @@ static int ndo2db_stmt_bind_results(struct ndo2db_stmt *stmt) {
 	size_t i;
 	size_t n_char = 0;
 	size_t n_short = 0;
-	// 	size_t n_int = 0;
+	size_t n_int = 0;
 	size_t n_uint = 0;
 	size_t n_double = 0;
 	size_t n_short_str = 0;
 	size_t n_long_str = 0;
 
-	/* Allocate our bindings with null values, free any existing. */
+	/* Allocate our result bindings with null values, free any existing. */
 	free(stmt->result_binds);
 	stmt->result_binds = calloc(stmt->nr, sizeof(MYSQL_BIND));
 	if (!stmt->result_binds) return NDO_ERROR;
@@ -869,10 +970,32 @@ static int ndo2db_stmt_bind_results(struct ndo2db_stmt *stmt) {
 		bind->error = ndo2db_stmt_bind_error + i;
 	}
 
+	/* Check our bound buffer usage is within limits. */
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_STMT, 0, "ndo2db_stmt_bind_results: %s "
+			"n_char=%zu, n_short=%zu, n_int=%zu, n_uint=%zu, n_double=%zu, "
+			"n_short_str=%zu, n_long_str=%zu, nr=i=%zu\n",
+			ndo2db_stmt_names[stmt->id], n_char, n_short, n_int, n_uint, n_double,
+			n_short_str, n_long_str, i);
+	CHECK_BOUND_BUFFER_USAGE(n_char, char);
+	CHECK_BOUND_BUFFER_USAGE(n_short, short);
+	CHECK_BOUND_BUFFER_USAGE(n_int, int);
+	CHECK_BOUND_BUFFER_USAGE(n_uint, uint);
+	CHECK_BOUND_BUFFER_USAGE(n_double, double);
+	CHECK_BOUND_BUFFER_USAGE(n_short_str, short_str);
+	CHECK_BOUND_BUFFER_USAGE(n_long_str, long_str);
+	CHECK_BOUND_BUFFER_USAGE(stmt->nr, length);
+	CHECK_BOUND_BUFFER_USAGE(stmt->nr, is_null);
+	CHECK_BOUND_BUFFER_USAGE(stmt->nr, error);
+
 	/* Now bind our statement results. */
 	return mysql_stmt_bind_result(stmt->handle, stmt->result_binds)
 			? NDO_ERROR : NDO_OK;
 }
+
+
+/* We don't need these anymore. */
+#undef CHECK_BOUND_BUFFER_USAGE
+#undef UPDATE_BOUND_BUFFER_USAGE
 
 
 /**
@@ -1006,7 +1129,7 @@ static int ndo2db_stmt_process_buffered_input(
 			ndo2db_strtoshort(bi[p->bi_index], b->buffer);
 			break;
 
-		case BIND_TYPE_I32: /* Equal to BIND_TYPE_LONG */
+		case BIND_TYPE_I32:
 			ndo2db_strtoint(bi[p->bi_index], b->buffer);
 			break;
 
