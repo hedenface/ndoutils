@@ -160,7 +160,6 @@ int ndo2db_db_goodbye(ndo2db_idi *);
 int ndo2db_db_checkin(ndo2db_idi *);
 
 char *ndo2db_db_escape_string(ndo2db_idi *, char *);
-char *ndo2db_db_timet_to_sql(ndo2db_idi *, time_t);
 
 int ndo2db_db_query(ndo2db_idi *, char *);
 int ndo2db_handle_db_error(ndo2db_idi *);

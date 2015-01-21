@@ -35,7 +35,6 @@
 #include "../include/protoapi.h"
 #include "../include/ndo2db.h"
 #include "../include/db.h"
-#include "../include/dbhandlers.h"
 #include "../include/dbstatements.h"
 #include "../include/queue.h"
 
@@ -798,7 +797,9 @@ void ndo2db_child_sighandler(int sig) {
 int ndo2db_wait_for_connections(void) {
 	int sd_flag = 1;
 	int new_sd = 0;
+#ifndef DEBUG_NDO2DB
 	pid_t new_pid = -1;
+#endif
 	struct sockaddr_un server_address_u;
 	struct sockaddr_in server_address_i;
 	struct sockaddr_un client_address_u;
@@ -1753,172 +1754,144 @@ int ndo2db_end_input_data(ndo2db_idi *idi) {
 
 	/* archived log entries */
 	case NDO2DB_INPUT_DATA_LOGENTRY:
-		result = ndo2db_handle_logentry(idi);
+		result = ndo2db_stmt_handle_logentry(idi);
 		break;
 
 	/* realtime Nagios data */
 	case NDO2DB_INPUT_DATA_PROCESSDATA:
-		result = ndo2db_handle_processdata(idi);
+		result = ndo2db_stmt_handle_processdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_TIMEDEVENTDATA:
-		result = ndo2db_handle_timedeventdata(idi);
+		result = ndo2db_stmt_handle_timedeventdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_LOGDATA:
-		result = ndo2db_handle_logdata(idi);
+		result = ndo2db_stmt_handle_logdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_SYSTEMCOMMANDDATA:
-		result = ndo2db_handle_systemcommanddata(idi);
+		result = ndo2db_stmt_handle_systemcommanddata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_EVENTHANDLERDATA:
-		result = ndo2db_handle_eventhandlerdata(idi);
+		result = ndo2db_stmt_handle_eventhandlerdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_NOTIFICATIONDATA:
-		result = ndo2db_handle_notificationdata(idi);
+		result = ndo2db_stmt_handle_notificationdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_SERVICECHECKDATA:
-// 		result = ndo2db_handle_servicecheckdata(idi);
 		result = ndo2db_stmt_handle_servicecheckdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_HOSTCHECKDATA:
-// 		result = ndo2db_handle_hostcheckdata(idi);
 		result = ndo2db_stmt_handle_hostcheckdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_COMMENTDATA:
-		result = ndo2db_handle_commentdata(idi);
+		result = ndo2db_stmt_handle_commentdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_DOWNTIMEDATA:
-		result = ndo2db_handle_downtimedata(idi);
+		result = ndo2db_stmt_handle_downtimedata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_FLAPPINGDATA:
-		result = ndo2db_handle_flappingdata(idi);
+		result = ndo2db_stmt_handle_flappingdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_PROGRAMSTATUSDATA:
-		result = ndo2db_handle_programstatusdata(idi);
+		result = ndo2db_stmt_handle_programstatusdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_HOSTSTATUSDATA:
-// 		result = ndo2db_handle_hoststatusdata(idi);
 		result = ndo2db_stmt_handle_hoststatusdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_SERVICESTATUSDATA:
-// 		result = ndo2db_handle_servicestatusdata(idi);
 		result = ndo2db_stmt_handle_servicestatusdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_CONTACTSTATUSDATA:
-		result = ndo2db_handle_contactstatusdata(idi);
+		result = ndo2db_stmt_handle_contactstatusdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_ADAPTIVEPROGRAMDATA:
-// 		result = ndo2db_handle_adaptiveprogramdata(idi);
 		result = ndo2db_stmt_handle_adaptiveprogramdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_ADAPTIVEHOSTDATA:
-// 		result = ndo2db_handle_adaptivehostdata(idi);
 		result = ndo2db_stmt_handle_adaptivehostdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_ADAPTIVESERVICEDATA:
-// 		result = ndo2db_handle_adaptiveservicedata(idi);
 		result = ndo2db_stmt_handle_adaptiveservicedata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_ADAPTIVECONTACTDATA:
-// 		result = ndo2db_handle_adaptivecontactdata(idi);
 		result = ndo2db_stmt_handle_adaptivecontactdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_EXTERNALCOMMANDDATA:
-		result = ndo2db_handle_externalcommanddata(idi);
+		result = ndo2db_stmt_handle_externalcommanddata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_AGGREGATEDSTATUSDATA:
-// 		result = ndo2db_handle_aggregatedstatusdata(idi);
 		result = ndo2db_stmt_handle_aggregatedstatusdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_RETENTIONDATA:
-// 		result = ndo2db_handle_retentiondata(idi);
 		result = ndo2db_stmt_handle_retentiondata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_CONTACTNOTIFICATIONDATA:
-		result = ndo2db_handle_contactnotificationdata(idi);
+		result = ndo2db_stmt_handle_contactnotificationdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_CONTACTNOTIFICATIONMETHODDATA:
-		result = ndo2db_handle_contactnotificationmethoddata(idi);
+		result = ndo2db_stmt_handle_contactnotificationmethoddata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_ACKNOWLEDGEMENTDATA:
-		result = ndo2db_handle_acknowledgementdata(idi);
+		result = ndo2db_stmt_handle_acknowledgementdata(idi);
 		break;
 	case NDO2DB_INPUT_DATA_STATECHANGEDATA:
-		result = ndo2db_handle_statechangedata(idi);
+		result = ndo2db_stmt_handle_statechangedata(idi);
 		break;
 
 	/* config file and variable dumps */
 	case NDO2DB_INPUT_DATA_MAINCONFIGFILEVARIABLES:
-// 		result = ndo2db_handle_configfilevariables(idi, 0);
 		result = ndo2db_stmt_handle_configfilevariables(idi, 0);
 		break;
 	case NDO2DB_INPUT_DATA_RESOURCECONFIGFILEVARIABLES:
-// 		result = ndo2db_handle_configfilevariables(idi, 1);
 		result = ndo2db_stmt_handle_configfilevariables(idi, 1);
 		break;
 	case NDO2DB_INPUT_DATA_CONFIGVARIABLES:
-// 		result = ndo2db_handle_configvariables(idi);
 		result = ndo2db_stmt_handle_configvariables(idi);
 		break;
 	case NDO2DB_INPUT_DATA_RUNTIMEVARIABLES:
-// 		result = ndo2db_handle_runtimevariables(idi);
 		result = ndo2db_stmt_handle_runtimevariables(idi);
 		break;
 	case NDO2DB_INPUT_DATA_CONFIGDUMPSTART:
-// 		result = ndo2db_handle_configdumpstart(idi);
 		result = ndo2db_stmt_handle_configdumpstart(idi);
 		break;
 	case NDO2DB_INPUT_DATA_CONFIGDUMPEND:
-// 		result = ndo2db_handle_configdumpend(idi);
 		result = ndo2db_stmt_handle_configdumpend(idi);
 		break;
 
 	/* config definitions */
 	case NDO2DB_INPUT_DATA_HOSTDEFINITION:
-// 		result = ndo2db_handle_hostdefinition(idi);
 		result = ndo2db_stmt_handle_hostdefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_HOSTGROUPDEFINITION:
-// 		result = ndo2db_handle_hostgroupdefinition(idi);
 		result = ndo2db_stmt_handle_hostgroupdefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_SERVICEDEFINITION:
-// 		result = ndo2db_handle_servicedefinition(idi);
 		result = ndo2db_stmt_handle_servicedefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_SERVICEGROUPDEFINITION:
-// 		result = ndo2db_handle_servicegroupdefinition(idi);
 		result = ndo2db_stmt_handle_servicegroupdefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_HOSTDEPENDENCYDEFINITION:
-// 		result = ndo2db_handle_hostdependencydefinition(idi);
 		result = ndo2db_stmt_handle_hostdependencydefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_SERVICEDEPENDENCYDEFINITION:
-// 		result = ndo2db_handle_servicedependencydefinition(idi);
 		result = ndo2db_stmt_handle_servicedependencydefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_HOSTESCALATIONDEFINITION:
-// 		result = ndo2db_handle_hostescalationdefinition(idi);
 		result = ndo2db_stmt_handle_hostescalationdefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_SERVICEESCALATIONDEFINITION:
-// 		result = ndo2db_handle_serviceescalationdefinition(idi);
 		result = ndo2db_stmt_handle_serviceescalationdefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_COMMANDDEFINITION:
-// 		result = ndo2db_handle_commanddefinition(idi);
 		result = ndo2db_stmt_handle_commanddefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_TIMEPERIODDEFINITION:
-// 		result = ndo2db_handle_timeperiodefinition(idi);
 		result = ndo2db_stmt_handle_timeperiodefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_CONTACTDEFINITION:
-// 		result = ndo2db_handle_contactdefinition(idi);
 		result = ndo2db_stmt_handle_contactdefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_CONTACTGROUPDEFINITION:
-// 		result = ndo2db_handle_contactgroupdefinition(idi);
 		result = ndo2db_stmt_handle_contactgroupdefinition(idi);
 		break;
 	case NDO2DB_INPUT_DATA_HOSTEXTINFODEFINITION:

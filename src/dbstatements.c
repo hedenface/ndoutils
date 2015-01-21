@@ -26,24 +26,23 @@
 #include "../include/protoapi.h"
 #include "../include/ndo2db.h"
 #include "../include/db.h"
-#include "../include/dbhandlers.h"
 #include "../include/dbstatements.h"
 
 /* Nagios headers. */
 #ifdef BUILD_NAGIOS_2X
-// #include "../include/nagios-2x/nagios.h"
+#include "../include/nagios-2x/nagios.h"
 #include "../include/nagios-2x/broker.h"
-// #include "../include/nagios-2x/comments.h"
+#include "../include/nagios-2x/comments.h"
 #endif
 #ifdef BUILD_NAGIOS_3X
-// #include "../include/nagios-3x/nagios.h"
+#include "../include/nagios-3x/nagios.h"
 #include "../include/nagios-3x/broker.h"
-// #include "../include/nagios-3x/comments.h"
+#include "../include/nagios-3x/comments.h"
 #endif
 #ifdef BUILD_NAGIOS_4X
-// #include "../include/nagios-4x/nagios.h"
+#include "../include/nagios-4x/nagios.h"
 #include "../include/nagios-4x/broker.h"
-// #include "../include/nagios-4x/comments.h"
+#include "../include/nagios-4x/comments.h"
 #endif
 
 
@@ -90,30 +89,49 @@ enum ndo2db_stmt_id {
 	NDO2DB_STMT_GET_OBJ_IDS,
 	NDO2DB_STMT_SET_OBJ_ACTIVE,
 
-	NDO2DB_STMT_HANDLE_LOGENTRY,
-	NDO2DB_STMT_HANDLE_PROCESSDATA,
-	NDO2DB_STMT_HANDLE_TIMEDEVENTDATA,
-	NDO2DB_STMT_HANDLE_LOGDATA,
-	NDO2DB_STMT_HANDLE_SYSTEMCOMMANDDATA,
-	NDO2DB_STMT_HANDLE_EVENTHANDLERDATA,
-	NDO2DB_STMT_HANDLE_NOTIFICATIONDATA,
-	NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONDATA,
-	NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONMETHODDATA,
+	NDO2DB_STMT_SAVE_LOG,
+	NDO2DB_STMT_FIND_LOG,
 
-	NDO2DB_STMT_HANDLE_COMMENTDATA,
-	NDO2DB_STMT_HANDLE_DOWNTIMEDATA,
-	NDO2DB_STMT_HANDLE_FLAPPINGDATA,
-	NDO2DB_STMT_HANDLE_PROGRAMSTATUSDATA,
+	NDO2DB_STMT_HANDLE_PROCESSDATA,
+	NDO2DB_STMT_UPDATE_PROCESSDATA_PROGRAMSTATUS,
+
+	NDO2DB_STMT_TIMEDEVENT_ADD,
+	NDO2DB_STMT_TIMEDEVENT_EXECUTE,
+	NDO2DB_STMT_TIMEDEVENT_REMOVE,
+	NDO2DB_STMT_TIMEDEVENTQUEUE_CLEAN,
+	NDO2DB_STMT_TIMEDEVENTQUEUE_ADD,
+	NDO2DB_STMT_TIMEDEVENTQUEUE_REMOVE,
+
+	NDO2DB_STMT_HANDLE_SYSTEMCOMMAND,
+	NDO2DB_STMT_HANDLE_EVENTHANDLER,
+	NDO2DB_STMT_HANDLE_NOTIFICATION,
+	NDO2DB_STMT_HANDLE_CONTACTNOTIFICATION,
+	NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONMETHOD,
+
+	NDO2DB_STMT_COMMENTHISTORY_ADD,
+	NDO2DB_STMT_COMMENTHISTORY_DELETE,
+	NDO2DB_STMT_COMMENT_ADD,
+	NDO2DB_STMT_COMMENT_DELETE,
+
+	NDO2DB_STMT_DOWNTIMEHISTORY_ADD,
+	NDO2DB_STMT_DOWNTIMEHISTORY_START,
+	NDO2DB_STMT_DOWNTIMEHISTORY_STOP,
+	NDO2DB_STMT_DOWNTIME_ADD,
+	NDO2DB_STMT_DOWNTIME_START,
+	NDO2DB_STMT_DOWNTIME_STOP,
+
+	NDO2DB_STMT_HANDLE_FLAPPING,
+	NDO2DB_STMT_HANDLE_PROGRAMSTATUS,
 
 	NDO2DB_STMT_HANDLE_HOSTCHECK,
 	NDO2DB_STMT_HANDLE_SERVICECHECK,
 	NDO2DB_STMT_HANDLE_HOSTSTATUS,
 	NDO2DB_STMT_HANDLE_SERVICESTATUS,
 
-	NDO2DB_STMT_HANDLE_CONTACTSTATUSDATA,
-	NDO2DB_STMT_HANDLE_EXTERNALCOMMANDDATA,
-	NDO2DB_STMT_HANDLE_ACKNOWLEDGEMENTDATA,
-	NDO2DB_STMT_HANDLE_STATECHANGEDATA,
+	NDO2DB_STMT_HANDLE_CONTACTSTATUS,
+	NDO2DB_STMT_HANDLE_EXTERNALCOMMAND,
+	NDO2DB_STMT_HANDLE_ACKNOWLEDGEMENT,
+	NDO2DB_STMT_HANDLE_STATECHANGE,
 
 	NDO2DB_STMT_HANDLE_CONFIGFILE,
 	NDO2DB_STMT_SAVE_CONFIGFILEVARIABLE,
@@ -177,30 +195,49 @@ static const char *ndo2db_stmt_names[] = {
 	"NDO2DB_STMT_GET_OBJ_IDS",
 	"NDO2DB_STMT_SET_OBJ_ACTIVE",
 
-	"NDO2DB_STMT_HANDLE_LOGENTRY",
-	"NDO2DB_STMT_HANDLE_PROCESSDATA",
-	"NDO2DB_STMT_HANDLE_TIMEDEVENTDATA",
-	"NDO2DB_STMT_HANDLE_LOGDATA",
-	"NDO2DB_STMT_HANDLE_SYSTEMCOMMANDDATA",
-	"NDO2DB_STMT_HANDLE_EVENTHANDLERDATA",
-	"NDO2DB_STMT_HANDLE_NOTIFICATIONDATA",
-	"NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONDATA",
-	"NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONMETHODDATA",
+	"NDO2DB_STMT_SAVE_LOG",
+	"NDO2DB_STMT_FIND_LOG",
 
-	"NDO2DB_STMT_HANDLE_COMMENTDATA",
-	"NDO2DB_STMT_HANDLE_DOWNTIMEDATA",
-	"NDO2DB_STMT_HANDLE_FLAPPINGDATA",
-	"NDO2DB_STMT_HANDLE_PROGRAMSTATUSDATA",
+	"NDO2DB_STMT_HANDLE_PROCESSDATA",
+	"NDO2DB_STMT_UPDATE_PROCESSDATA_PROGRAMSTATUS",
+
+	"NDO2DB_STMT_TIMEDEVENT_ADD",
+	"NDO2DB_STMT_TIMEDEVENT_EXECUTE",
+	"NDO2DB_STMT_TIMEDEVENT_REMOVE",
+	"NDO2DB_STMT_TIMEDEVENTQUEUE_CLEAN",
+	"NDO2DB_STMT_TIMEDEVENTQUEUE_ADD",
+	"NDO2DB_STMT_TIMEDEVENTQUEUE_REMOVE",
+
+	"NDO2DB_STMT_HANDLE_SYSTEMCOMMAND",
+	"NDO2DB_STMT_HANDLE_EVENTHANDLER",
+	"NDO2DB_STMT_HANDLE_NOTIFICATION",
+	"NDO2DB_STMT_HANDLE_CONTACTNOTIFICATION",
+	"NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONMETHOD",
+
+	"NDO2DB_STMT_COMMENTHISTORY_ADD",
+	"NDO2DB_STMT_COMMENTHISTORY_DELETE",
+	"NDO2DB_STMT_COMMENT_ADD",
+	"NDO2DB_STMT_COMMENT_DELETE",
+
+	"NDO2DB_STMT_DOWNTIMEHISTORY_ADD",
+	"NDO2DB_STMT_DOWNTIMEHISTORY_START",
+	"NDO2DB_STMT_DOWNTIMEHISTORY_STOP",
+	"NDO2DB_STMT_DOWNTIME_ADD",
+	"NDO2DB_STMT_DOWNTIME_START",
+	"NDO2DB_STMT_DOWNTIME_STOP",
+
+	"NDO2DB_STMT_HANDLE_FLAPPING",
+	"NDO2DB_STMT_HANDLE_PROGRAMSTATUS",
 
 	"NDO2DB_STMT_HANDLE_HOSTCHECK",
 	"NDO2DB_STMT_HANDLE_SERVICECHECK",
 	"NDO2DB_STMT_HANDLE_HOSTSTATUS",
 	"NDO2DB_STMT_HANDLE_SERVICESTATUS",
 
-	"NDO2DB_STMT_HANDLE_CONTACTSTATUSDATA",
-	"NDO2DB_STMT_HANDLE_EXTERNALCOMMANDDATA",
-	"NDO2DB_STMT_HANDLE_ACKNOWLEDGEMENTDATA",
-	"NDO2DB_STMT_HANDLE_STATECHANGEDATA",
+	"NDO2DB_STMT_HANDLE_CONTACTSTATUS",
+	"NDO2DB_STMT_HANDLE_EXTERNALCOMMAND",
+	"NDO2DB_STMT_HANDLE_ACKNOWLEDGEMENT",
+	"NDO2DB_STMT_HANDLE_STATECHANGE",
 
 	"NDO2DB_STMT_HANDLE_CONFIGFILE",
 	"NDO2DB_STMT_SAVE_CONFIGFILEVARIABLE",
@@ -263,15 +300,17 @@ enum bind_data_type {
 	BIND_TYPE_DOUBLE, /* double bind */
 	BIND_TYPE_SHORT_STRING, /* char[256] bind */
 	BIND_TYPE_LONG_STRING, /* char[65536] bind */
-	BIND_TYPE_FROM_UNIXTIME /* u32 bind, FROM_UNIXTIME(?) placeholder */
+	BIND_TYPE_FROM_UNIXTIME, /* u32 bind, FROM_UNIXTIME(?) placeholder */
+	BIND_TYPE_TV_SEC, /* u32 bind, FROM_UNIXTIME(?) placeholder */
+	BIND_TYPE_TV_USEC, /* i32 bind */
+	BIND_TYPE_CURRENT_CONFIG /* idi->current_object_config_type, i8 bind */
 };
 
 /** Additional binding flags for special cases. */
 enum bind_flags {
 	BIND_ONLY_INS = 1,
 	BIND_MAYBE_NULL = 2,
-	BIND_BUFFERED_INPUT = 4,
-	BIND_CURRENT_CONFIG_TYPE = 8,
+	BIND_BUFFERED_INPUT = 4
 };
 
 /** Bind info for template generation, binding, and data conversion. */
@@ -327,7 +366,7 @@ static struct ndo2db_stmt ndo2db_stmts[NDO2DB_NUM_STMTS];
 /** Static storage for bound parameters and results. */
 static signed char ndo2db_stmt_bind_char[27];
 static signed short ndo2db_stmt_bind_short[4];
-static signed int ndo2db_stmt_bind_int[2];
+static signed int ndo2db_stmt_bind_int[3];
 static unsigned int ndo2db_stmt_bind_uint[14];
 static double ndo2db_stmt_bind_double[9];
 static char ndo2db_stmt_bind_short_str[13][BIND_SHORT_STRING_LENGTH];
@@ -406,12 +445,27 @@ typedef int (*ndo2db_stmt_initializer)(ndo2db_idi *idi, ndo_dbuf *dbuf);
 	static int f(ndo2db_idi *idi, ndo_dbuf *dbuf)
 
 NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_obj);
-NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_servicecheck);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_log);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_processdata);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_timedevent);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_systemcommand);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_eventhandler);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_notification);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_contactnotification);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_contactnotificationmethod);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_comment);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_downtime);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_flapping);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_programstatus);
 NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_hostcheck);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_servicecheck);
 NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_hoststatus);
 NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_servicestatus);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_contactstatus);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_externalcommand);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_acknowledgement);
+NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_statechange);
 NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_configfile);
-NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_configfilevariable);
 NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_runtimevariable);
 NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_host);
 NDO_DECLARE_STMT_INITIALIZER(ndo2db_stmt_init_hostgroup);
@@ -445,13 +499,46 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 	/* ...NDO2DB_STMT_GET_OBJ_IDS */
 	/* ...NDO2DB_STMT_SET_OBJ_ACTIVE */
 
-	ndo2db_stmt_init_servicecheck,
+	ndo2db_stmt_init_log,
+	/* ...NDO2DB_STMT_SAVE_LOG */
+	/* ...NDO2DB_STMT_FIND_LOG */
+
+	ndo2db_stmt_init_processdata,
+	/* ...NDO2DB_STMT_HANDLE_PROCESSDATA */
+	/* ...NDO2DB_STMT_UPDATE_PROCESSDATA_PROGRAMSTATUS */
+
+	ndo2db_stmt_init_timedevent,
+	/* ...NDO2DB_STMT_TIMEDEVENT_ADD */
+	/* ...NDO2DB_STMT_TIMEDEVENT_EXECUTE */
+	/* ...NDO2DB_STMT_TIMEDEVENT_REMOVE */
+	/* ...NDO2DB_STMT_TIMEDEVENTQUEUE_CLEAN */
+	/* ...NDO2DB_STMT_TIMEDEVENTQUEUE_ADD */
+	/* ...NDO2DB_STMT_TIMEDEVENTQUEUE_REMOVE */
+
+	ndo2db_stmt_init_systemcommand,
+	ndo2db_stmt_init_eventhandler,
+	ndo2db_stmt_init_notification,
+	ndo2db_stmt_init_contactnotification,
+	ndo2db_stmt_init_contactnotificationmethod,
+
+	ndo2db_stmt_init_comment,
+
+	ndo2db_stmt_init_downtime,
+
+	ndo2db_stmt_init_flapping,
+	ndo2db_stmt_init_programstatus,
+
 	ndo2db_stmt_init_hostcheck,
+	ndo2db_stmt_init_servicecheck,
 	ndo2db_stmt_init_hoststatus,
 	ndo2db_stmt_init_servicestatus,
 
+	ndo2db_stmt_init_contactstatus,
+	ndo2db_stmt_init_externalcommand,
+	ndo2db_stmt_init_acknowledgement,
+	ndo2db_stmt_init_statechange,
+
 	ndo2db_stmt_init_configfile,
-	ndo2db_stmt_init_configfilevariable,
 	ndo2db_stmt_init_runtimevariable,
 
 	ndo2db_stmt_init_host,
@@ -501,7 +588,6 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 
 /**
  * Copies a scalar to a bound buffer, casting as needed.
- *
  * @param v Source value.
  * @param b Destination MYSQL_BIND.
  * @param bt Destination bound buffer type to cast to.
@@ -517,7 +603,6 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 
 /**
  * Copies a scalar from a bound buffer, casting as needed.
- *
  * @param vt Destination value type to cast to.
  * @param b Source MYSQL_BIND.
  * @param bt Source bound buffer type to cast from.
@@ -526,34 +611,26 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 	(vt) *(bt *)(b).buffer
 
 /**
- * Copies a non-null string v into storage bound to a prepared statement
- * parameter.
- * The destination buffer is described by the MYSQL_BIND structure b. Strings
- * longer than the bind buffer will be truncated. In all cases the destination
- * bind buffer will be null-terminated and the bind structure updated with the
- * correct strlen.
- *
+ * Copies a non-null string v into bound storage. Strings longer than the
+ * destination buffer are truncated.
  * @param v The input string to copy from.
  * @param b The MYSQL_BIND for the parameter to copy to.
+ * @post b.buffer is a null-terminated string of strlen *b.length.
  */
 #define COPY_BIND_STRING_NOT_EMPTY(v, b) \
 	do { \
 		unsigned long n_ = (unsigned long)strlen((v)); \
 		*(b).length = (n_ < (b).buffer_length) ? n_ : (b).buffer_length - 1; \
-		strncpy((b).buffer, (v), (size_t)(b).buffer_length); \
+		memcpy((b).buffer, (v), (size_t)*(b).length); \
 		((char *)(b).buffer)[*(b).length] = '\0'; \
 	} while (0)
 
 /**
- * Copies a string v into storage bound to a prepared statement parameter,
- * defaulting to the empty string if v is null or empty.
- * The destination buffer is described by the MYSQL_BIND structure b. Strings
- * longer than the bind buffer will be truncated. In all cases the destination
- * bind buffer will be null-terminated and the bind structure updated with the
- * correct strlen.
- *
+ * Copies a string v into bound storage, defaulting to empty if v is null.
+ * Strings longer than the destination buffer are truncated.
  * @param v The input string to copy from.
- * @param b The MYSQL_BIND for the parameter to copy to.
+ * @param b The MYSQL_BIND for the buffer to copy to.
+ * @post b.buffer is a null-terminated string of strlen *b.length.
  */
 #define COPY_BIND_STRING_OR_EMPTY(v, b) \
 	do { \
@@ -567,20 +644,29 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 	} while (0)
 
 /**
- * Copies a string v into storage bound to a prepared statement parameter,
- * setting *b.is_null appropriately.
- * The destination buffer is described by the MYSQL_BIND structure b. Strings
- * longer than the bind buffer will be truncated. In all cases the destination
- * bind buffer will be null-terminated and the bind structure updated with the
- * correct strlen.
- *
+ * Copies a possibly null string v into bound storage. Strings longer than the
+ * destination buffer are truncated.
  * @param v The input string to copy from.
- * @param b The MYSQL_BIND for the parameter to copy to.
+ * @param b The MYSQL_BIND for the buffer to copy to.
+ * @post b.buffer is a null-terminated string of strlen *b.length; and
+ * *b.is_null is 1 if v was null, 0 if not.
  */
 #define COPY_BIND_STRING_OR_NULL(v, b) \
 	do { \
 		COPY_BIND_STRING_OR_EMPTY((v), (b)); \
 		*(b).is_null = !(v); \
+	} while (0)
+
+/**
+ * Copies a timeval into bound storage.
+ * @param tv struct timeval to copy.
+ * @param bs uint32 MYSQL_BIND for tv.tv_sec.
+ * @param bu int32 MYSQL_BIND for tv.tv_usec.
+ */
+#define COPY_TV_TO_BOUND_TV(tv, bs, bu) \
+	do { \
+		COPY_TO_BOUND_UINT((tv).tv_sec, (bs)); \
+		COPY_TO_BOUND_INT((tv).tv_usec, (bu)); \
 	} while (0)
 
 
@@ -614,7 +700,8 @@ static ndo2db_stmt_initializer ndo2db_stmt_initializers[] = {
 
 
 
-/** Expands to a checked "var = strto;" conversion. */
+/** Expands to a checked "var = strto;" conversion for defining
+ * ndo_checked_strto{d|l|ul}(). */
 #define CHECKED_STRING_TO(strto, str, var) \
 	char *endptr = NULL; \
 	if (!str || !*str) { \
@@ -637,15 +724,19 @@ inline static int ndo_checked_strtol(const char *str, long *l) {
 	CHECKED_STRING_TO(strtol(str, &endptr, 10), str, *l);
 }
 
+#undef CHECKED_STRING_TO
 
-/** Expands to a checked "var = (vt)strtoul(...);" conversion. */
+
+/** Expands to a checked "var = (vt)strtoul(...);" conversion for defining
+ * ndo_checked_strtouint(). */
 #define CHECKED_STRING_TO_UNSIGNED(vt, v, max) \
 	unsigned long ul; \
 	int st = ndo_checked_strtoul(str, &ul); \
 	v = (unsigned vt)ul; \
 	return (st != NDO_OK) ? st : (ul <= max) ? NDO_OK : NDO_ERROR
 
-/** Expands to a checked "var = (vt)strtol(...);" conversion. */
+/** Expands to a checked "var = (vt)strtol(...);" conversion for defining
+ * ndo_checked_strto{schar|short|int}(). */
 #define CHECKED_STRING_TO_SIGNED(vt, v, min, max) \
 	long l; \
 	int st = ndo_checked_strtol(str, &l); \
@@ -667,6 +758,9 @@ inline static int ndo_checked_strtoshort(const char *str, signed short *s) {
 inline static int ndo_checked_strtoschar(const char *str, signed char *c) {
 	CHECKED_STRING_TO_SIGNED(char, *c, CHAR_MIN, CHAR_MAX);
 }
+
+#undef CHECKED_STRING_TO_SIGNED
+#undef CHECKED_STRING_TO_UNSIGNED
 
 
 /**
@@ -750,7 +844,7 @@ static int ndo2db_convert_standard_data(ndo2db_idi *idi, int *type, int *flags,
 	ndo2db_convert_standard_data(idi, &type, &flags, &attr, &tstamp)
 
 /** Declares and converts standard handler data. */
-#define DECLARE_CONVERT_STD_DATA \
+#define DECLARE_AND_CONVERT_STD_DATA \
 	DECLARE_STD_DATA; CONVERT_STD_DATA
 
 /** Returns ND_OK if standard handler data tstamp older than most recent
@@ -761,7 +855,7 @@ static int ndo2db_convert_standard_data(ndo2db_idi *idi, int *type, int *flags,
 /** Declares and converts standard handler data, returns if we've seen more
  * recent realtime data. */
 #define DECLARE_CONVERT_STD_DATA_RETURN_OK_IF_TOO_OLD \
-	DECLARE_CONVERT_STD_DATA; RETURN_OK_IF_STD_DATA_TOO_OLD
+	DECLARE_AND_CONVERT_STD_DATA; RETURN_OK_IF_STD_DATA_TOO_OLD
 
 
 
@@ -857,8 +951,8 @@ static int ndo2db_stmt_print_insert(
 	CHK_OK(ndo_dbuf_printf(dbuf, ") VALUES (%lu", idi->dbinfo.instance_id));
 
 	for (i = 0; i < np; ++i) {
-		CHK_OK(ndo_dbuf_strcat(dbuf,
-				params[i].type == BIND_TYPE_FROM_UNIXTIME ? ",FROM_UNIXTIME(?)" : ",?"));
+		CHK_OK(ndo_dbuf_strcat(dbuf, (params[i].type == BIND_TYPE_FROM_UNIXTIME
+				|| params[i].type == BIND_TYPE_TV_SEC) ? ",FROM_UNIXTIME(?)" : ",?"));
 	}
 
 	CHK_OK(ndo_dbuf_strcat(dbuf, ")"));
@@ -925,11 +1019,13 @@ static int ndo2db_stmt_bind_params(struct ndo2db_stmt *stmt) {
 
 	/* Setup the bind description structures for the parameters. */
 	for (i = 0; i < stmt->np; ++i) {
+		const struct ndo2db_stmt_bind *param = stmt->params + i;
 		MYSQL_BIND *bind = stmt->param_binds + i;
 
-		switch (stmt->params[i].type) {
+		switch (param->type) {
 
 		case BIND_TYPE_I8:
+		case BIND_TYPE_CURRENT_CONFIG:
 			bind->buffer_type = MYSQL_TYPE_TINY;
 			bind->buffer = ndo2db_stmt_bind_char + n_char++;
 			break;
@@ -939,11 +1035,29 @@ static int ndo2db_stmt_bind_params(struct ndo2db_stmt *stmt) {
 			bind->buffer = ndo2db_stmt_bind_short + n_short++;
 			break;
 
+		case BIND_TYPE_TV_USEC:
+			/* suseconds_t is signed and so are our columns. Do a sanity check before
+			 * falling through to set up the BIND_TYPE_I32 bind info. */
+			if (i == 0 || param[-1].type != BIND_TYPE_TV_SEC) {
+				syslog(LOG_USER|LOG_ERR, "ndo2db_stmt_bind_params: %s params[%zu]: "
+						"BIND_TYPE_TV_USEC must follow BIND_TYPE_TV_SEC.",
+						ndo2db_stmt_names[stmt->id], i);
+				return NDO_ERROR;
+			}
 		case BIND_TYPE_I32:
 			bind->buffer_type = MYSQL_TYPE_LONG;
 			bind->buffer = ndo2db_stmt_bind_int + n_int++;
 			break;
 
+		case BIND_TYPE_TV_SEC:
+			/* time_t is signed but NDO has a convention of unsigned for times... Do
+			 * a sanity check before falling through to set up the bind info. */
+			if (i == stmt->np - 1 || param[+1].type != BIND_TYPE_TV_USEC) {
+				syslog(LOG_USER|LOG_ERR, "ndo2db_stmt_bind_params: %s params[%zu]: "
+						"BIND_TYPE_TV_SEC must be followed by BIND_TYPE_TV_USEC.",
+						ndo2db_stmt_names[stmt->id], i);
+				return NDO_ERROR;
+			}
 		case BIND_TYPE_U32:
 		case BIND_TYPE_FROM_UNIXTIME: /* Timestamps are bound as uint. */
 			/* @todo Use uint32_t et al. We use unsigned long elsewhere (e.g.
@@ -979,11 +1093,11 @@ static int ndo2db_stmt_bind_params(struct ndo2db_stmt *stmt) {
 		default:
 			syslog(LOG_USER|LOG_ERR,
 					"ndo2db_stmt_bind_params: %s params[%zu] has bad type %d.",
-					ndo2db_stmt_names[stmt->id], i, stmt->params[i].type);
+					ndo2db_stmt_names[stmt->id], i, param->type);
 			return NDO_ERROR;
 		}
 
-		if (stmt->params[i].flags & BIND_MAYBE_NULL) {
+		if (param->flags & BIND_MAYBE_NULL) {
 			bind->is_null = ndo2db_stmt_bind_is_null + n_is_null++;
 		}
 	}
@@ -1045,6 +1159,11 @@ static int ndo2db_stmt_bind_results(struct ndo2db_stmt *stmt) {
 		case BIND_TYPE_I16:
 			bind->buffer_type = MYSQL_TYPE_SHORT;
 			bind->buffer = ndo2db_stmt_bind_short + n_short++;
+			break;
+
+		case BIND_TYPE_I32:
+			bind->buffer_type = MYSQL_TYPE_LONG;
+			bind->buffer = ndo2db_stmt_bind_int + n_int++;
 			break;
 
 		case BIND_TYPE_U32:
@@ -1110,6 +1229,7 @@ static int ndo2db_stmt_bind_results(struct ndo2db_stmt *stmt) {
 /* We don't need these anymore. */
 #undef CHECK_BOUND_BUFFER_USAGE
 #undef UPDATE_BOUND_BUFFER_USAGE
+
 
 
 /**
@@ -1187,7 +1307,7 @@ static int ndo2db_stmt_prepare_insert(
 	const int table_id,
 	const struct ndo2db_stmt_bind *params,
 	const size_t np,
-	my_bool up_on_dup
+	const my_bool up_on_dup
 ) {
 	/* Print our template with an "ON DUPLICATE KEY UPDATE..." if requested. */
 	ndo_dbuf_reset(dbuf);
@@ -1197,6 +1317,56 @@ static int ndo2db_stmt_prepare_insert(
 	/* Prepare our statement and bind its parameters. */
 	return ndo2db_stmt_prepare_and_bind(idi, stmt_id,
 			dbuf->buf, dbuf->used_size, params, np, NULL, 0);
+}
+
+
+/**
+ * Prepares and binds a SELECT statement for fetching instance data.
+ * @param idi Input data and DB connection info.
+ * @param dbuf Dynamic buffer for printing the statement template.
+ * @param stmt_id Statement id to prepare.
+ * @param from "... FROM %s ..." table name or expression string.
+ * @param params Column name and input datatype to bind for each parameter.
+ * @param np Number of parameters.
+ * @param results Column name and output datatype to bind for each result.
+ * @param nr Number of results.
+ * @param and_where Additional WHERE ... AND condition
+ * @return NDO_OK on success, an error code otherwise, usually NDO_ERROR.
+ * @post ndo2db_stmts[stmt_id].handle is the statment handle.
+ * @post ndo2db_stmts[stmt_id].binds is the array of parameter bindings.
+ * @post ndo2db_stmts[stmt_id].results is the array of result bindings.
+ */
+static int ndo2db_stmt_prepare_select(
+		ndo2db_idi *idi,
+		ndo_dbuf *dbuf,
+		const enum ndo2db_stmt_id stmt_id,
+		const char *from,
+		const struct ndo2db_stmt_bind *params,
+		const size_t np,
+		const struct ndo2db_stmt_bind *results,
+		const size_t nr,
+		const char *and_where
+) {
+	size_t i;
+
+	/* Print our full template. */
+	ndo_dbuf_reset(dbuf);
+	CHK_OK(ndo_dbuf_strcat(dbuf, "SELECT "));
+
+	for (i = 0; i < nr; ++i) {
+		CHK_OK(ndo_dbuf_printf(dbuf, (i ? ",%s" : "%s"), results[i].column));
+	}
+
+	CHK_OK(ndo_dbuf_printf(dbuf, " FROM %s WHERE instance_id=%lu",
+			from, idi->dbinfo.instance_id));
+
+	if (and_where && *and_where) {
+		CHK_OK(ndo_dbuf_printf(dbuf, " AND %s", and_where));
+	}
+
+	/* Prepare our statement, and bind its parameters and results. */
+	return ndo2db_stmt_prepare_and_bind(idi, stmt_id,
+			dbuf->buf, dbuf->used_size, params, np, results, nr);
 }
 
 
@@ -1225,18 +1395,13 @@ static int ndo2db_stmt_process_buffered_input(
 
 	for (i = 0; i < stmt->np; ++i, ++p, ++b) {
 
-		/* Skip params with no buffered_input index. */
-		if (!(p->flags & BIND_BUFFERED_INPUT)) continue;
+		/* Skip params with no buffered_input flag. */
+		if (~p->flags & BIND_BUFFERED_INPUT) continue;
 
 		switch (p->type) {
 
 		case BIND_TYPE_I8:
-			if (p->flags & BIND_CURRENT_CONFIG_TYPE) {
-				COPY_TO_BOUND_CHAR(idi->current_object_config_type, *b);
-			}
-			else {
-				ndo_checked_strtoschar(bi[p->bi_index], b->buffer);
-			}
+			ndo_checked_strtoschar(bi[p->bi_index], b->buffer);
 			break;
 
 		case BIND_TYPE_I16:
@@ -1261,6 +1426,24 @@ static int ndo2db_stmt_process_buffered_input(
 			COPY_BIND_STRING_OR_EMPTY(bi[p->bi_index], *b);
 			break;
 
+		case BIND_TYPE_TV_SEC:
+			{
+				struct timeval tv;
+				ndo_checked_strtotv(bi[p->bi_index], &tv);
+				COPY_TV_TO_BOUND_TV(tv, b[0], b[1]);
+			}
+			break;
+
+		case BIND_TYPE_TV_USEC:
+			/* We checked sec/usec ordering in ndo2db_stmt_bind_params(), so this
+			 * should have already been processed by an immediately preceding
+			 * BIND_TYPE_TV_SEC. A more detailed check may be desired here. */
+			break;
+
+		case BIND_TYPE_CURRENT_CONFIG:
+			COPY_TO_BOUND_CHAR(idi->current_object_config_type, *b);
+			break;
+
 		default:
 			syslog(LOG_USER|LOG_ERR,
 					"ndo2db_stmt_process_buffered_input: %s params[%zu] has bad type %d.",
@@ -1283,16 +1466,18 @@ static int ndo2db_stmt_process_buffered_input(
 static int ndo2db_stmt_execute(ndo2db_idi *idi, struct ndo2db_stmt *stmt) {
 	/* Try to connect if we're not connected... */
 	if (!idi->dbinfo.connected) {
-		if (ndo2db_db_connect(idi) == NDO_ERROR || !idi->dbinfo.connected) return NDO_ERROR;
+		CHK_OK(ndo2db_db_connect(idi));
+		if (!idi->dbinfo.connected) return NDO_ERROR;
 		/* This reprepares and rebinds our statements, but doesn't touch the bound
-		 * buffers, so parameter data will be preserved. (Unless
+		 * buffer contents, so parameter data will be preserved. (Unless
 		 * mysql_stmt_bind_param() touches the buffers, which it shouldn't...) */
-		ndo2db_db_hello(idi);
+		CHK_OK(ndo2db_db_hello(idi));
 	}
 
 	if (mysql_stmt_execute(stmt->handle)) {
-		syslog(LOG_USER|LOG_ERR, "Error: mysql_stmt_execute() failed for statement %d.", stmt->id);
-		syslog(LOG_USER|LOG_ERR, "mysql_stmt_error: %s", mysql_stmt_error(stmt->handle));
+		syslog(LOG_USER|LOG_ERR,
+				"mysql_stmt_execute() failed for statement %d, mysql_stmt_error: %s",
+				stmt->id, mysql_stmt_error(stmt->handle));
 		ndo2db_handle_db_error(idi);
 		return NDO_ERROR;
 	}
@@ -1444,24 +1629,31 @@ static int ndo2db_cache_obj(int type, const char *name1, const char *name2,
 	struct ndo2db_object *curr;
 	struct ndo2db_object *prev;
 	struct ndo2db_object *new;
+	unsigned h;
 	unsigned i;
-	unsigned h = ndo2db_obj_hash(name1, name2, ndo2db_objects_size);
-
-#ifdef NDO2DB_DEBUG_CACHING
-	ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
-			"ndo2db_cache_obj: id=%lu, type=%d, name1=%s, name2=%s, h=%u\n",
-			object_id, type, name1, name2, h);
-#endif
 
 	/* Initialize the hash list if needed. */
 	if (!ndo2db_objects) {
 		ndo2db_objects = calloc(NDO2DB_OBJECT_HASHSLOTS,
 				sizeof(struct ndo2db_object *));
-		if (!ndo2db_objects) return NDO_ERROR;
+		if (!ndo2db_objects) {
+#ifdef NDO2DB_DEBUG_CACHING
+			ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
+					"ndo2db_cache_obj: unable to allocate object cache\n");
+#endif
+			return NDO_ERROR;
+		}
 		ndo2db_objects_size = NDO2DB_OBJECT_HASHSLOTS;
 		ndo2db_objects_count = 0;
 		ndo2db_objects_collisions = 0;
 	}
+
+	h = ndo2db_obj_hash(name1, name2, ndo2db_objects_size);
+#ifdef NDO2DB_DEBUG_CACHING
+	ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
+			"ndo2db_cache_obj: id=%lu, type=%d, name1=%s, name2=%s, h=%u\n",
+			object_id, type, name1, name2, h);
+#endif
 
 	/* Construct our new object. */
 	new = malloc(sizeof(struct ndo2db_object));
@@ -1574,7 +1766,7 @@ static int ndo2db_find_obj(ndo2db_idi *idi, int type,	const char *name1,
  * @return NDO_OK with the object id in *object_id, otherwise an error code
  * (usually NDO_ERROR) and *object_id = 0.
  */
-int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int type,
+static int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int type,
 		const char *name1, const char *name2, unsigned long *object_id) {
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_GET_OBJ_ID_INSERT;
 	MYSQL_BIND *binds = stmt->param_binds;
@@ -1622,8 +1814,8 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 	int status;
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_GET_OBJ_IDS;
 	MYSQL_BIND *results = stmt->result_binds;
-	my_ulonglong num_rows = 0;
-	size_t num_slots = 0;
+	my_ulonglong num_rows;
+	size_t num_slots;
 
 	/* Find all the object definitions we already have */
 	CHK_OK(ndo2db_stmt_execute(idi, stmt));
@@ -1640,12 +1832,10 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi) {
 	 * be optimal for hash distribution or memory usage reasons. */
 	num_rows = mysql_stmt_num_rows(stmt->handle);
 	num_slots = (size_t)num_rows * 2;
-	num_slots = (num_slots > NDO2DB_OBJECT_HASHSLOTS)
-			? num_slots : NDO2DB_OBJECT_HASHSLOTS;
+	if (num_slots < NDO2DB_OBJECT_HASHSLOTS) num_slots = NDO2DB_OBJECT_HASHSLOTS;
 #ifdef NDO2DB_DEBUG_CACHING
 	ndo2db_log_debug_info(NDO2DB_DEBUGL_CACHE, 0,
-			"ndo2db_load_obj_cache: num_rows=%llu, num_slots=%zu\n",
-			num_rows, num_slots);
+			"ndo2db_load_obj_cache: rows=%llu, slots=%zu\n", num_rows, num_slots);
 #endif
 
 	/* Free and reallocate the cache, we're rebuilding from scratch. */
@@ -1714,7 +1904,7 @@ void ndo2db_free_obj_cache(void) {
  * @param idi Input data and DB connection info.
  * @return NDO_OK on success, an error code otherwise, usually NDO_ERROR.
  */
-int ndo2db_set_all_objs_inactive(ndo2db_idi *idi) {
+static int ndo2db_set_all_objs_inactive(ndo2db_idi *idi) {
 	int status;
 	char *buf = NULL;
 
@@ -1736,69 +1926,451 @@ int ndo2db_set_all_objs_inactive(ndo2db_idi *idi) {
  * @param type ndo2db object type code.
  * @param id Object id.
  */
-int ndo2db_set_obj_active(ndo2db_idi *idi, int type, unsigned long id) {
+static int ndo2db_set_obj_active(ndo2db_idi *idi, int type, unsigned long id) {
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_SET_OBJ_ACTIVE;
 
 	COPY_TO_BOUND_UINT(id, stmt->param_binds[0]);
 	COPY_TO_BOUND_CHAR(type, stmt->param_binds[1]);
-
 	return ndo2db_stmt_execute(idi, stmt);
 }
 
 
 
 
-int ndo2db_stmt_handle_logentry(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+static int ndo2db_stmt_save_logentry(ndo2db_idi *idi, my_bool is_live) {
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_SAVE_LOG;
+	/* Set what our caller hasn't, and execute. */
+	COPY_TO_BOUND_CHAR(is_live, s->param_binds[5]); /* realtime_data */
+	COPY_TO_BOUND_CHAR(is_live, s->param_binds[6]); /* inferred_data_extracted */
+	return ndo2db_stmt_execute(idi, s);
 }
+
+#define STRIP_TRAILING_NEWLINES(s) \
+	do { \
+		size_t i_ = strlen(s); \
+		while (i_ && s[i_ - 1] == '\n') --i_; \
+		s[i_] = '\0'; \
+	} while (0)
+
+int ndo2db_stmt_handle_logentry(ndo2db_idi *idi) {
+	unsigned long log_time;
+	struct ndo2db_stmt *s;
+	MYSQL_BIND *b;
+	MYSQL_BIND *result;
+
+	/* Break the log line into logentry_time and logentry_data strings. */
+	char *log_msg = NULL;
+	const char *log_ts = strtok_r(
+			idi->buffered_input[NDO_DATA_LOGENTRY], "]", &log_msg);
+	if (!log_ts || *log_ts != '[' || !log_msg) return NDO_ERROR;
+
+	/* The logentry_time string must convert successfully. */
+	CHK_OK(ndo_checked_strtoul(log_ts + 1, &log_time));
+	/* Remove any trailing newlines from the log message. */
+	STRIP_TRAILING_NEWLINES(log_msg);
+
+	/* See if any entries exist with the same logentry_time and logentry_data. */
+	s = ndo2db_stmts + NDO2DB_STMT_FIND_LOG;
+	b = s->param_binds;
+	result = s->result_binds;
+	COPY_TO_BOUND_UINT(log_time, b[0]); /* logentry_time */
+	COPY_BIND_STRING_OR_EMPTY(log_msg, b[1]); /* logentry_data */
+	ndo2db_stmt_execute(idi, s);
+	/* We have a duplicate if the first (only) result row is non-zero. We really
+	 * need to sort out error handling. Follow the original string handler here:
+	 * it's only a duplicate if we successully counted one. */
+	if (mysql_stmt_fetch(s->handle) == 0
+			&& !*result->error && !*result->is_null && *(int *)result->buffer != 0
+	) {
+#ifdef NDO2DB_DEBUG
+		ndo2db_log_debug_info(NDO2DB_DEBUGL_SQL|NDO2DB_DEBUGL_STMT, 0,
+				"ndo2db_stmt_handle_logentry: Ignoring duplicate.\n");
+#endif
+		return NDO_OK;
+	}
+
+	/* No duplicate, so copy our data to bound storage and save the log. */
+	s = ndo2db_stmts + NDO2DB_STMT_SAVE_LOG;
+	b = s->param_binds;
+	/* logentry_time and logentry_data are already set in b[0] and b[1], the find
+	 * and save statements bind to the same buffers for these data. */
+	COPY_TO_BOUND_CHAR(0, b[2]); /* logentry_type 0 here */
+	COPY_TO_BOUND_UINT(log_time, b[3]); /* entry_time is logentry_time here */
+	COPY_TO_BOUND_UINT(0, b[4]); /* entry_time_usec 0 here */
+	/* Callee sets b[5] (realtime_data) and b[6] (inferred_data_extracted). */
+
+	return ndo2db_stmt_save_logentry(idi, 0);
+	/* @todo: "Possibly extract 'inferred data' or logentry_type..." */
+}
+
+int ndo2db_stmt_handle_logdata(ndo2db_idi *idi) {
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_SAVE_LOG;
+	MYSQL_BIND *b = s->param_binds;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Strip any trailing newlines from log data in buffered input. */
+	STRIP_TRAILING_NEWLINES(idi->buffered_input[NDO_DATA_LOGENTRY]);
+
+	ndo2db_stmt_process_buffered_input(idi, s); /* Process b[0,1,2]. */
+	COPY_TV_TO_BOUND_TV(tstamp, b[3], b[4]); /* entry_time, entry_time_usec */
+	/* Callee sets b[5] (realtime_data) and b[6] (inferred_data_extracted). */
+
+	return ndo2db_stmt_save_logentry(idi, 1);
+}
+
+#undef STRIP_TRAILING_NEWLINES
 
 
 int ndo2db_stmt_handle_processdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_PROCESSDATA;
+	MYSQL_BIND *b = s->param_binds;
+	int status = NDO_OK;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Copy/convert and save the process data. */
+	COPY_TO_BOUND_INT(type, b[0]); /* event_type */
+	COPY_TV_TO_BOUND_TV(tstamp, b[1], b[2]); /* event_time, event_time_usec */
+	ndo2db_stmt_process_buffered_input(idi, s);
+	SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+	if (tstamp.tv_sec < idi->dbinfo.latest_realtime_data_time) return status;
+
+	/* Clear live data if the process is just starting up. */
+	if (type == NEBTYPE_PROCESS_PRELAUNCH) {
+		#define CLEAR_TABLE(t) \
+				ndo2db_db_clear_table(idi, ndo2db_db_tablenames[NDO2DB_DBTABLE_ ## t])
+		/* Live data. */
+		CLEAR_TABLE(PROGRAMSTATUS);
+		CLEAR_TABLE(HOSTSTATUS);
+		CLEAR_TABLE(SERVICESTATUS);
+		CLEAR_TABLE(CONTACTSTATUS);
+		CLEAR_TABLE(TIMEDEVENTQUEUE);
+		CLEAR_TABLE(COMMENTS);
+		CLEAR_TABLE(SCHEDULEDDOWNTIME);
+		CLEAR_TABLE(RUNTIMEVARIABLES);
+		CLEAR_TABLE(CUSTOMVARIABLESTATUS);
+		/* Config data. */
+		CLEAR_TABLE(CONFIGFILES);
+		CLEAR_TABLE(CONFIGFILEVARIABLES);
+		CLEAR_TABLE(CUSTOMVARIABLES);
+		CLEAR_TABLE(COMMANDS);
+		CLEAR_TABLE(TIMEPERIODS);
+		CLEAR_TABLE(TIMEPERIODTIMERANGES);
+		CLEAR_TABLE(CONTACTGROUPS);
+		CLEAR_TABLE(CONTACTGROUPMEMBERS);
+		CLEAR_TABLE(HOSTGROUPS);
+		CLEAR_TABLE(HOSTGROUPMEMBERS);
+		CLEAR_TABLE(SERVICEGROUPS);
+		CLEAR_TABLE(SERVICEGROUPMEMBERS);
+		CLEAR_TABLE(HOSTESCALATIONS);
+		CLEAR_TABLE(HOSTESCALATIONCONTACTS);
+		CLEAR_TABLE(SERVICEESCALATIONS);
+		CLEAR_TABLE(SERVICEESCALATIONCONTACTS);
+		CLEAR_TABLE(HOSTDEPENDENCIES);
+		CLEAR_TABLE(SERVICEDEPENDENCIES);
+		CLEAR_TABLE(CONTACTS);
+		CLEAR_TABLE(CONTACTADDRESSES);
+		CLEAR_TABLE(CONTACTNOTIFICATIONCOMMANDS);
+		CLEAR_TABLE(HOSTS);
+		CLEAR_TABLE(HOSTPARENTHOSTS);
+		CLEAR_TABLE(HOSTCONTACTS);
+		CLEAR_TABLE(SERVICES);
+#ifdef BUILD_NAGIOS_4X
+		CLEAR_TABLE(SERVICEPARENTSERVICES);
+#endif
+		CLEAR_TABLE(SERVICECONTACTS);
+		CLEAR_TABLE(SERVICECONTACTGROUPS);
+		CLEAR_TABLE(HOSTCONTACTGROUPS);
+		CLEAR_TABLE(HOSTESCALATIONCONTACTGROUPS);
+		CLEAR_TABLE(SERVICEESCALATIONCONTACTGROUPS);
+		#undef CLEAR_TABLE
+
+		/* All objects are initially inactive. */
+		SAVE_ERR(status, ndo2db_set_all_objs_inactive(idi));
+	}
+
+	/* Update process status data if it's shutting down or restarting. */
+	else if (type == NEBTYPE_PROCESS_SHUTDOWN || type == NEBTYPE_PROCESS_RESTART) {
+		s = ndo2db_stmts + NDO2DB_STMT_UPDATE_PROCESSDATA_PROGRAMSTATUS;
+		COPY_TO_BOUND_UINT(tstamp.tv_sec, s->param_binds[0]); /* program_end_time */
+		SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+	}
+
+	return status;
 }
 
 
 int ndo2db_stmt_handle_timedeventdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
-}
+	short timedevent_type;
+	int object_type;
+	unsigned long object_id;
+	char **bi = idi->buffered_input;
+	struct ndo2db_stmt *s;
+	MYSQL_BIND *b;
+	size_t i;
+	int status = NDO_OK;
+
+	DECLARE_AND_CONVERT_STD_DATA; /* Our standard data type is our NEBTYPE. */
+
+#ifndef NDO2DB_SAVE_TIMEDEVENTS_HISTORY
+	/* Nothing to do with old data if not saving history. (There's a flux
+	 * capacitor in here somewhere, maybe next to the potential inductor...) */
+	if (tstamp.tv_sec < idi->dbinfo.latest_realtime_data_time) return NDO_OK;
+#endif
+	/* Skip sleep events. */
+	if (type == NEBTYPE_TIMEDEVENT_SLEEP) return NDO_OK;
+
+	/* Get the Nagios timed EVENT type (this is different from the NEBTYPE). */
+	ndo_checked_strtoshort(bi[NDO_DATA_EVENTTYPE], &timedevent_type);
+
+	/* Get the host/service object id, if applicable. */
+	switch (timedevent_type) {
+	case EVENT_HOST_CHECK: object_type = NDO2DB_OBJECTTYPE_HOST; break;
+	case EVENT_SERVICE_CHECK: object_type = NDO2DB_OBJECTTYPE_SERVICE; break;
+	case EVENT_SCHEDULED_DOWNTIME: object_type = (bi[NDO_DATA_SERVICE]
+				? NDO2DB_OBJECTTYPE_SERVICE : NDO2DB_OBJECTTYPE_HOST); break;
+	default: object_type = 0; break;
+	}
+	object_id = 0;
+	if (object_type) {
+		ndo2db_get_obj_id_with_insert(idi, object_type,
+				bi[NDO_DATA_HOST], bi[NDO_DATA_SERVICE], &object_id);
+	}
 
 
-int ndo2db_stmt_handle_logdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+/* Save a history of events that get added, executed or removed, if enabled. */
+#ifdef NDO2DB_SAVE_TIMEDEVENTS_HISTORY
+	/* Select our statement, if we have one for this NEBTYPE. */
+	s = ndo2db_stmts;
+	switch (type) {
+	case NEBTYPE_TIMEDEVENT_ADD: s += NDO2DB_STMT_TIMEDEVENT_ADD; break;
+	case NEBTYPE_TIMEDEVENT_EXECUTE: s += NDO2DB_STMT_TIMEDEVENT_EXECUTE; break;
+	case NEBTYPE_TIMEDEVENT_REMOVE: s += NDO2DB_STMT_TIMEDEVENT_REMOVE; break;
+	default: goto timedevent_history_done;
+	}
+
+	/* We have a statement. Process our input data to bound storage...  */
+	b = s->param_binds;
+	COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* [queued|event|deletion]_time, usecs */
+	COPY_TO_BOUND_UINT(object_id, b[2]); /* object_id obviously */
+	COPY_TO_BOUND_SHORT(timedevent_type, b[3]); /* evemt_type */
+	ndo2db_stmt_process_buffered_input(idi, s); /* scheduled_time, recurring_event */
+	/* ...and make our statement. */
+	SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+timedevent_history_done:
+	/* There's nothing more to do with old data now that we've saved history. */
+	if (tstamp.tv_sec < idi->dbinfo.latest_realtime_data_time) return status;
+#endif
+
+
+	/* Remove likely expired enqueued events on connection startup. */
+	if (idi->dbinfo.clean_event_queue) {
+		idi->dbinfo.clean_event_queue = NDO_FALSE;
+		s = ndo2db_stmts + NDO2DB_STMT_TIMEDEVENTQUEUE_CLEAN;
+		/* "DELETE ... WHERE ... scheduled_time < tstamp.tv_sec + 1" equivalent to
+		 * "scheduled_time <= tstamp.tv_sec" */
+		COPY_TO_BOUND_UINT(tstamp.tv_sec + 1, s->param_binds[0]);
+		SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+	}
+
+
+	/* Handle new live data. */
+	switch (type) {
+	case NEBTYPE_TIMEDEVENT_ADD:
+		/* Add newly enqueued timed events. */
+		s = ndo2db_stmts + NDO2DB_STMT_TIMEDEVENT_ADD;
+		b = s->param_binds;
+		COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* queued_time, usecs */
+		i = 2;
+		break;
+
+	case NEBTYPE_TIMEDEVENT_EXECUTE:
+	case NEBTYPE_TIMEDEVENT_REMOVE:
+		/* Remove executed or removed enqueued events. */
+		s = ndo2db_stmts + NDO2DB_STMT_TIMEDEVENT_REMOVE;
+		b = s->param_binds;
+		i = 0;
+		break;
+
+	default:
+		return status; /* Nothing more to do. */
+	}
+
+	/* Process any further input to bound storage and execute. */
+	COPY_TO_BOUND_UINT(object_id, b[i]); /* object_id obviously */
+	COPY_TO_BOUND_SHORT(timedevent_type, b[i + 1]); /* event_type */
+	ndo2db_stmt_process_buffered_input(idi, s); /* scheduled_time, recurring_event */
+	SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+
+	/* One last thing: remove old enqueued events when checks are executed.
+	 * From the original notes: "If we are executing a low-priority event, remove
+	 * older events from the queue, as we know they've already been executed.
+	 * This is a hack! It shouldn't be necessary, but for some reason it is...
+	 * Otherwise not all events are removed from the queue. :-("
+	 * @todo: There aren't really low-priority events in Nagios 4, so we may be
+	 * able to skip this extra DB operation per check when BUILD_NAGIOS_4X. */
+	if (type == NEBTYPE_TIMEDEVENT_EXECUTE
+			&& (timedevent_type == EVENT_HOST_CHECK || timedevent_type == EVENT_SERVICE_CHECK)
+	) {
+		s = ndo2db_stmts + NDO2DB_STMT_TIMEDEVENTQUEUE_CLEAN;
+		/* "DELETE ... WHERE ... scheduled_time < tstamp.tv_sec" */
+		COPY_TO_BOUND_UINT(tstamp.tv_sec, s->param_binds[0]);
+		SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+	}
+
+	return status;
 }
 
 
 int ndo2db_stmt_handle_systemcommanddata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_SYSTEMCOMMAND;
+	DECLARE_AND_CONVERT_STD_DATA;
+	ndo2db_stmt_process_buffered_input(idi, s);
+	return ndo2db_stmt_execute(idi, s);
 }
 
 
 int ndo2db_stmt_handle_eventhandlerdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	signed char eventhandler_type;
+	unsigned long object_id;
+	unsigned long command_id;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_EVENTHANDLER;
+	MYSQL_BIND *b = s->param_binds;
+	char **bi = idi->buffered_input;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Convert our eventdler type. */
+	ndo_checked_strtoschar(bi[NDO_DATA_EVENTHANDLERTYPE], &eventhandler_type);
+
+	/* Get our object id. */
+	if (eventhandler_type == SERVICE_EVENTHANDLER
+			|| eventhandler_type == GLOBAL_SERVICE_EVENTHANDLER) {
+		ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_SERVICE,
+				bi[NDO_DATA_HOST], bi[NDO_DATA_SERVICE], &object_id);
+	}
+	else {
+		ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_HOST,
+				bi[NDO_DATA_HOST], NULL, &object_id);
+	}
+
+	/* Get the command id. */
+	ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_COMMAND,
+			bi[NDO_DATA_COMMANDNAME], NULL, &command_id);
+
+	/* Copy everything to bound storage... */
+	COPY_TO_BOUND_CHAR(eventhandler_type, b[0]);
+	COPY_TO_BOUND_UINT(object_id, b[1]);
+	COPY_TO_BOUND_UINT(command_id, b[2]);
+	ndo2db_stmt_process_buffered_input(idi, s);
+	/* ...and execute. */
+	return ndo2db_stmt_execute(idi, s);
 }
 
 
+/** Lookup an optional host/service object id from names in buffered input. */
+#define GET_OPTIONAL_HS_ID(type, type_host, type_service, id) \
+	do { \
+		if (type == type_service) { \
+			ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_SERVICE, \
+					idi->buffered_input[NDO_DATA_HOST], \
+					idi->buffered_input[NDO_DATA_SERVICE], id); \
+		} \
+		else if (type == type_host) { \
+			ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_HOST, \
+					idi->buffered_input[NDO_DATA_HOST], NULL, id); \
+		} \
+		else { \
+			*id = 0; \
+		} \
+	} while (0)
+
+
 int ndo2db_stmt_handle_notificationdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	signed char notification_type;
+	unsigned long object_id;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_NOTIFICATION;
+	MYSQL_BIND *b = s->param_binds;
+	char **bi = idi->buffered_input;
+	int status = NDO_OK;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Convert our notification type and use it to get our object id. */
+	ndo_checked_strtoschar(bi[NDO_DATA_NOTIFICATIONTYPE], &notification_type);
+	GET_OPTIONAL_HS_ID(notification_type, HOST_NOTIFICATION, SERVICE_NOTIFICATION,
+			&object_id);
+
+	/* Copy everything to bound storage... */
+	COPY_TO_BOUND_CHAR(notification_type, b[0]);
+	COPY_TO_BOUND_UINT(object_id, b[1]);
+	ndo2db_stmt_process_buffered_input(idi, s);
+	/* ...and execute. */
+	SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+	/* Save the notification id for handling contact notifications. */
+	if (type == NEBTYPE_NOTIFICATION_START) {
+		idi->dbinfo.last_notification_id = (status == NDO_OK)
+				? mysql_stmt_insert_id(s->handle) : 0;
+	}
+
+	return status;
 }
 
 
 int ndo2db_stmt_handle_contactnotificationdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	unsigned long contact_id;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_CONTACTNOTIFICATION;
+	MYSQL_BIND *b = s->param_binds;
+	char **bi = idi->buffered_input;
+	int status = NDO_OK;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Get the contact id. */
+	ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_CONTACT,
+			bi[NDO_DATA_CONTACTNAME], NULL, &contact_id);
+
+	/* Copy everything to bound storage... */
+	COPY_TO_BOUND_CHAR(idi->dbinfo.last_notification_id, b[0]);
+	COPY_TO_BOUND_UINT(contact_id, b[1]);
+	ndo2db_stmt_process_buffered_input(idi, s);
+	/* ...and execute. */
+	SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+	/* Save the contact notification id for handling contact notifications per
+	 * method. */
+	if (type == NEBTYPE_CONTACTNOTIFICATION_START) {
+		idi->dbinfo.last_contact_notification_id = (status == NDO_OK)
+				? mysql_stmt_insert_id(s->handle) : 0;
+	}
+
+	return status;
 }
 
 
 int ndo2db_stmt_handle_contactnotificationmethoddata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	unsigned long command_id;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_CONTACTNOTIFICATIONMETHOD;
+	MYSQL_BIND *b = s->param_binds;
+	char **bi = idi->buffered_input;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Get the command id. */
+	ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_COMMAND,
+			bi[NDO_DATA_COMMANDNAME], NULL, &command_id);
+
+	/* Copy everything to bound storage... */
+	COPY_TO_BOUND_CHAR(idi->dbinfo.last_contact_notification_id, b[0]);
+	COPY_TO_BOUND_UINT(command_id, b[1]);
+	ndo2db_stmt_process_buffered_input(idi, s);
+	/* ...and execute. */
+	return ndo2db_stmt_execute(idi, s);
 }
 
 
@@ -1806,8 +2378,6 @@ static int ndo2db_stmt_save_hs_check(
 	ndo2db_idi *idi,
 	const enum ndo2db_stmt_id stmt_id
 ) {
-	struct timeval start_time;
-	struct timeval end_time;
 	unsigned long object_id = 0;
 	unsigned long command_id = 0;
 	MYSQL_BIND *binds = ndo2db_stmts[stmt_id].param_binds;
@@ -1821,7 +2391,7 @@ static int ndo2db_stmt_save_hs_check(
 	const char *cname = bi[NDO_DATA_COMMANDNAME];
 
 	/* Convert timestamp, etc. */
-	DECLARE_CONVERT_STD_DATA;
+	DECLARE_AND_CONVERT_STD_DATA;
 
 	if (
 #if (defined(BUILD_NAGIOS_3X) || defined(BUILD_NAGIOS_4X))
@@ -1849,21 +2419,14 @@ static int ndo2db_stmt_save_hs_check(
 				cname, NULL, &command_id);
 	}
 
-	ndo_checked_strtotv(bi[NDO_DATA_STARTTIME], &start_time);
-	ndo_checked_strtotv(bi[NDO_DATA_ENDTIME], &end_time);
-
 	/* Covert/copy our input data to bound parameter storage. */
 	COPY_TO_BOUND_UINT(object_id, binds[0]);
 	COPY_TO_BOUND_UINT(command_id, binds[1]);
-	COPY_TO_BOUND_UINT(start_time.tv_sec, binds[2]);
-	COPY_TO_BOUND_INT(start_time.tv_usec, binds[3]);
-	COPY_TO_BOUND_UINT(end_time.tv_sec, binds[4]);
-	COPY_TO_BOUND_INT(end_time.tv_usec, binds[5]);
 	/* Host checks have an additional 'is_raw_check' boolean column (SMALLINT). */
 	if (is_host_check) {
 		COPY_TO_BOUND_CHAR(
 				(type == NEBTYPE_HOSTCHECK_RAW_START || type == NEBTYPE_HOSTCHECK_RAW_END),
-				binds[6]);
+				binds[2]);
 	}
 	ndo2db_stmt_process_buffered_input(idi, ndo2db_stmts + stmt_id);
 
@@ -1881,28 +2444,191 @@ int ndo2db_stmt_handle_servicecheckdata(ndo2db_idi *idi) {
 
 
 int ndo2db_stmt_handle_commentdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	signed char comment_type;
+	unsigned long object_id;
+	struct ndo2db_stmt *s;
+	MYSQL_BIND *b;
+	char **bi = idi->buffered_input;
+	int status = NDO_OK;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Convert our comment type and use it to get our object id. */
+	ndo_checked_strtoschar(bi[NDO_DATA_COMMENTTYPE], &comment_type);
+	GET_OPTIONAL_HS_ID(comment_type, HOST_COMMENT, SERVICE_COMMENT, &object_id);
+
+	switch (type) {
+
+	case NEBTYPE_COMMENT_ADD:
+	case NEBTYPE_COMMENT_LOAD:
+		/* Save a history of comments that get added or get loaded. */
+		s = ndo2db_stmts + NDO2DB_STMT_COMMENTHISTORY_ADD;
+		b = s->param_binds;
+		COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* entry_time, entry_time_usec */
+		COPY_TO_BOUND_UINT(object_id, b[2]);
+		COPY_TO_BOUND_CHAR(comment_type, b[3]);
+		ndo2db_stmt_process_buffered_input(idi, s);
+		SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+		if (tstamp.tv_sec >= idi->dbinfo.latest_realtime_data_time) {
+			/* Save new live comments that get added. The binds all point to the same
+			 * data, only the statement and its table differ, so no need to muck
+			 * about moving data. */
+			s = ndo2db_stmts + NDO2DB_STMT_COMMENT_ADD;
+			SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+		}
+		break;
+
+	case NEBTYPE_COMMENT_DELETE:
+		/* Record a history of comments that get deleted. */
+		s = ndo2db_stmts + NDO2DB_STMT_COMMENTHISTORY_DELETE;
+		b = s->param_binds;
+		COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* deletion_time, deletion_time_usec */
+		/* b[2] (comment_time) and b[3] (internal_comment_id) are auto converted. */
+		ndo2db_stmt_process_buffered_input(idi, s);
+		SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+		if (tstamp.tv_sec >= idi->dbinfo.latest_realtime_data_time) {
+			/* Remove deleted live comments. */
+			s = ndo2db_stmts + NDO2DB_STMT_COMMENT_DELETE;
+			ndo2db_stmt_process_buffered_input(idi, s);
+			SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return status;
 }
 
 
 int ndo2db_stmt_handle_downtimedata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	signed char downtime_type;
+	unsigned long object_id;
+	struct ndo2db_stmt *s;
+	MYSQL_BIND *b;
+	char **bi = idi->buffered_input;
+	int status = NDO_OK;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Convert our downtime type and use it to get our object id. */
+	ndo_checked_strtoschar(bi[NDO_DATA_DOWNTIMETYPE], &downtime_type);
+	GET_OPTIONAL_HS_ID(downtime_type, HOST_DOWNTIME, SERVICE_DOWNTIME, &object_id);
+
+	switch (type) {
+
+	case NEBTYPE_DOWNTIME_ADD:
+	case NEBTYPE_DOWNTIME_LOAD:
+		/* Save a history of scheduled downtime that gets added or get loaded. */
+		s = ndo2db_stmts + NDO2DB_STMT_DOWNTIMEHISTORY_ADD;
+		b = s->param_binds;
+		COPY_TO_BOUND_UINT(object_id, b[0]);
+		COPY_TO_BOUND_CHAR(downtime_type, b[1]);
+		ndo2db_stmt_process_buffered_input(idi, s);
+		SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+		if (tstamp.tv_sec >= idi->dbinfo.latest_realtime_data_time) {
+			/* Save new live scheduled downtime that gets added. The binds all point
+			 * to the same data, so we're ready to execute. */
+			s = ndo2db_stmts + NDO2DB_STMT_DOWNTIME_ADD;
+			SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+		}
+		break;
+
+	case NEBTYPE_DOWNTIME_START:
+		/* Save a history of scheduled downtime starting. */
+		s = ndo2db_stmts + NDO2DB_STMT_DOWNTIMEHISTORY_START;
+		b = s->param_binds;
+		COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* actual_start_time, usec */
+		COPY_TO_BOUND_CHAR(1, b[2]); /* was_started */
+		COPY_TO_BOUND_UINT(object_id, b[3]);
+		COPY_TO_BOUND_CHAR(downtime_type, b[4]);
+		ndo2db_stmt_process_buffered_input(idi, s);
+		SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+		if (tstamp.tv_sec >= idi->dbinfo.latest_realtime_data_time) {
+			/* Update live scheduled downtime that starts. */
+			s = ndo2db_stmts + NDO2DB_STMT_DOWNTIME_START;
+			SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+		}
+		break;
+
+	case NEBTYPE_DOWNTIME_STOP:
+		/* Save a history of scheduled downtime ending. */
+		s = ndo2db_stmts + NDO2DB_STMT_DOWNTIMEHISTORY_STOP;
+		b = s->param_binds;
+		COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* actual_end_time, usec */
+		COPY_TO_BOUND_CHAR((attr == NEBATTR_DOWNTIME_STOP_CANCELLED), b[2]); /* was_canceled */
+		COPY_TO_BOUND_UINT(object_id, b[3]);
+		COPY_TO_BOUND_CHAR(downtime_type, b[4]);
+		ndo2db_stmt_process_buffered_input(idi, s);
+		SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+
+		/* Fall-through: NEBTYPE_DOWNTIME_STOP and NEBTYPE_DOWNTIME_DELETE have
+		 * identical live data handling. */
+
+	case NEBTYPE_DOWNTIME_DELETE:
+		if (tstamp.tv_sec >= idi->dbinfo.latest_realtime_data_time) {
+			/* Remove completed or deleted live scheduled downtime. */
+			s = ndo2db_stmts + NDO2DB_STMT_DOWNTIME_STOP;
+			b = s->param_binds;
+			COPY_TO_BOUND_UINT(object_id, b[0]);
+			COPY_TO_BOUND_CHAR(downtime_type, b[1]);
+			ndo2db_stmt_process_buffered_input(idi, s);
+			SAVE_ERR(status, ndo2db_stmt_execute(idi, s));
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return status;
 }
 
 
 int ndo2db_stmt_handle_flappingdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	signed char flapping_type;
+	unsigned long object_id;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_FLAPPING;
+	MYSQL_BIND *b = s->param_binds;
+	char **bi = idi->buffered_input;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Convert our flapping type and use it to get our object id. */
+	ndo_checked_strtoschar(bi[NDO_DATA_FLAPPINGTYPE], &flapping_type);
+	GET_OPTIONAL_HS_ID(flapping_type, HOST_FLAPPING, SERVICE_FLAPPING, &object_id);
+
+	COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* event_time, event_time_usec */
+	COPY_TO_BOUND_CHAR(type, b[2]); /* event_type */
+	COPY_TO_BOUND_CHAR(attr, b[3]); /* reason_type */
+	COPY_TO_BOUND_CHAR(flapping_type, b[4]);
+	COPY_TO_BOUND_UINT(object_id, b[5]);
+	ndo2db_stmt_process_buffered_input(idi, s);
+
+	return ndo2db_stmt_execute(idi, s);
 }
 
 
 int ndo2db_stmt_handle_programstatusdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_PROGRAMSTATUS;
+
+	DECLARE_CONVERT_STD_DATA_RETURN_OK_IF_TOO_OLD;
+
+	COPY_TO_BOUND_UINT(tstamp.tv_sec, s->param_binds[0]); /* status_update_time */
+	COPY_TO_BOUND_CHAR(1, s->param_binds[1]); /* is_currently_running... */
+	ndo2db_stmt_process_buffered_input(idi, s);
+
+	return ndo2db_stmt_execute(idi, s);
 }
 
+
+static int ndo2db_stmt_save_customvariable_status(ndo2db_idi *idi,
+		unsigned long o_id, unsigned long t);
 
 static int ndo2db_stmt_save_hs_status(
 	ndo2db_idi *idi,
@@ -1931,9 +2657,8 @@ static int ndo2db_stmt_save_hs_status(
 	COPY_TO_BOUND_UINT(check_timeperiod_object_id, binds[2]);
 	ndo2db_stmt_process_buffered_input(idi, stmt);
 
-	/* Save the status... */
+	/* Save the host/service status... */
 	CHK_OK(ndo2db_stmt_execute(idi, stmt));
-
 	/* ...and any custom variable statuses. */
 	return ndo2db_stmt_save_customvariable_status(idi, object_id, tstamp.tv_sec);
 }
@@ -1962,8 +2687,24 @@ int ndo2db_stmt_handle_servicestatusdata(ndo2db_idi *idi) {
 
 
 int ndo2db_stmt_handle_contactstatusdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	unsigned long contact_object_id = 0;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_CONTACTSTATUS;
+
+	DECLARE_CONVERT_STD_DATA_RETURN_OK_IF_TOO_OLD;
+
+	/* Get our contact object id. */
+	ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_CONTACT,
+			idi->buffered_input[NDO_DATA_CONTACTNAME], NULL, &contact_object_id);
+
+	/* Copy our id and time to bound storage and auto process the rest. */
+	COPY_TO_BOUND_UINT(contact_object_id, s->param_binds[0]);
+	COPY_TO_BOUND_UINT(tstamp.tv_sec, s->param_binds[1]); /* status_update_time */
+	ndo2db_stmt_process_buffered_input(idi, s);
+
+	/* Save the contact status... */
+	CHK_OK(ndo2db_stmt_execute(idi, s));
+	/* ...and any custom variable statuses. */
+	return ndo2db_stmt_save_customvariable_status(idi, contact_object_id, tstamp.tv_sec);
 }
 
 
@@ -1996,8 +2737,14 @@ int ndo2db_stmt_handle_adaptivecontactdata(ndo2db_idi *idi) {
 
 
 int ndo2db_stmt_handle_externalcommanddata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_EXTERNALCOMMAND;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+	/* Only handle start events. */
+	if (type != NEBTYPE_EXTERNALCOMMAND_START) return NDO_OK;
+
+	ndo2db_stmt_process_buffered_input(idi, s);
+	return ndo2db_stmt_execute(idi, s);
 }
 
 
@@ -2016,20 +2763,55 @@ int ndo2db_stmt_handle_retentiondata(ndo2db_idi *idi) {
 
 
 int ndo2db_stmt_handle_acknowledgementdata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	signed char acknowledgement_type;
+	unsigned long object_id;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_ACKNOWLEDGEMENT;
+	MYSQL_BIND *b = s->param_binds;
+	char **bi = idi->buffered_input;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+
+	/* Convert our acknowledgement type and use it to get our object id. */
+	ndo_checked_strtoschar(bi[NDO_DATA_ACKNOWLEDGEMENTTYPE], &acknowledgement_type);
+	GET_OPTIONAL_HS_ID(acknowledgement_type,
+			HOST_ACKNOWLEDGEMENT, SERVICE_ACKNOWLEDGEMENT, &object_id);
+
+	COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* entry_time, entry_time_usec */
+	COPY_TO_BOUND_CHAR(acknowledgement_type, b[2]);
+	COPY_TO_BOUND_UINT(object_id, b[3]);
+	ndo2db_stmt_process_buffered_input(idi, s);
+
+	return ndo2db_stmt_execute(idi, s);
 }
 
 
 int ndo2db_stmt_handle_statechangedata(ndo2db_idi *idi) {
-	(void)idi;
-	return NDO_OK;
+	signed char statechange_type;
+	unsigned long object_id;
+	struct ndo2db_stmt *s = ndo2db_stmts + NDO2DB_STMT_HANDLE_STATECHANGE;
+	MYSQL_BIND *b = s->param_binds;
+	char **bi = idi->buffered_input;
+
+	DECLARE_AND_CONVERT_STD_DATA;
+	/* Only process completed state changes. */
+	if (type != NEBTYPE_STATECHANGE_END) return NDO_OK;
+
+	/* Convert our statechange type and use it to get our object id. */
+	ndo_checked_strtoschar(bi[NDO_DATA_STATECHANGETYPE], &statechange_type);
+	GET_OPTIONAL_HS_ID(statechange_type,
+			HOST_STATECHANGE, SERVICE_STATECHANGE, &object_id);
+
+	COPY_TV_TO_BOUND_TV(tstamp, b[0], b[1]); /* state_time, state_time_usec */
+	COPY_TO_BOUND_UINT(object_id, b[2]);
+	ndo2db_stmt_process_buffered_input(idi, s);
+
+	return ndo2db_stmt_execute(idi, s);
 }
 
 
 int ndo2db_stmt_handle_configfilevariables(ndo2db_idi *idi,
 		int configfile_type) {
-	unsigned long configfile_id = 0;
+	unsigned long configfile_id;
 	ndo2db_mbuf *mbuf;
 	int i;
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_HANDLE_CONFIGFILE;
@@ -2037,7 +2819,7 @@ int ndo2db_stmt_handle_configfilevariables(ndo2db_idi *idi,
 	int status = NDO_OK;
 
 	/* Declare and convert timestamp, etc. */
-	DECLARE_CONVERT_STD_DATA;
+	DECLARE_AND_CONVERT_STD_DATA;
 	ndo2db_log_debug_info(NDO2DB_DEBUGL_SQL, 0,
 			"ndo2db_stmt_handle_configfilevariables: tstamp: %lu, latest: %lu\n",
 			(unsigned long)tstamp.tv_sec,
@@ -2187,6 +2969,9 @@ static int ndo2db_stmt_save_relations(
 }
 
 
+static int ndo2db_stmt_save_customvariables(ndo2db_idi *idi, unsigned long o_id);
+
+
 static int ndo2db_stmt_save_hs_definition(
 	ndo2db_idi *idi,
 	const int object_type,
@@ -2206,9 +2991,8 @@ static int ndo2db_stmt_save_hs_definition(
 	unsigned long event_command_id;
 	unsigned long check_timeperiod_id;
 	unsigned long notif_timeperiod_id;
-	const char *command_str;
-	const char *check_args;
-	const char *event_args;
+	const char *check_args = NULL;
+	const char *event_args = NULL;
 	unsigned long row_id;
 	struct ndo2db_stmt *stmt = ndo2db_stmts + stmt_id;
 	MYSQL_BIND *binds = stmt->param_binds;
@@ -2219,16 +3003,21 @@ static int ndo2db_stmt_save_hs_definition(
 	DECLARE_CONVERT_STD_DATA_RETURN_OK_IF_TOO_OLD;
 
 	/* Get the check command args and object id. */
-	command_str = strtok(bi[check_cmd_index], "!");
-	check_args = strtok(NULL, "\0");
-	ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_COMMAND,
-			command_str, NULL, &check_command_id);
-
+	if (bi[check_cmd_index] && *bi[check_cmd_index]) {
+		char *args = NULL;
+		const char *name = strtok_r(bi[check_cmd_index], "!", &args);
+		check_args = args;
+		ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_COMMAND,
+				name, NULL, &check_command_id);
+	}
 	/* Get the event handler command args and object id. */
-	command_str = strtok(bi[event_cmd_index], "!");
-	event_args = strtok(NULL, "\0");
-	ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_COMMAND,
-			command_str, NULL, &event_command_id);
+	if (bi[event_cmd_index] && *bi[event_cmd_index]) {
+		char *args = NULL;
+		const char *name = strtok_r(bi[event_cmd_index], "!", &args);
+		event_args = args;
+		ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_COMMAND,
+				name, NULL, &event_command_id);
+	}
 
 	/* Get our host object id. */
 	ndo2db_get_obj_id_with_insert(idi, NDO2DB_OBJECTTYPE_HOST,
@@ -2720,7 +3509,7 @@ int ndo2db_stmt_handle_contactgroupdefinition(ndo2db_idi *idi) {
 }
 
 
-int ndo2db_stmt_save_customvariables(ndo2db_idi *idi, unsigned long o_id) {
+static int ndo2db_stmt_save_customvariables(ndo2db_idi *idi, unsigned long o_id) {
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_SAVE_CUSTOMVARIABLE;
 	MYSQL_BIND *binds = stmt->param_binds;
 	ndo2db_mbuf *mbuf = idi->mbuf + NDO2DB_MBUF_CUSTOMVARIABLE;
@@ -2756,7 +3545,7 @@ int ndo2db_stmt_save_customvariables(ndo2db_idi *idi, unsigned long o_id) {
 }
 
 
-int ndo2db_stmt_save_customvariable_status(ndo2db_idi *idi, unsigned long o_id,
+static int ndo2db_stmt_save_customvariable_status(ndo2db_idi *idi, unsigned long o_id,
 		unsigned long t) {
 	struct ndo2db_stmt *stmt = ndo2db_stmts + NDO2DB_STMT_SAVE_CUSTOMVARIABLESTATUS;
 	MYSQL_BIND *binds = stmt->param_binds;
@@ -2791,6 +3580,7 @@ int ndo2db_stmt_save_customvariable_status(ndo2db_idi *idi, unsigned long o_id,
 
 	return status;
 }
+
 
 
 
@@ -2833,53 +3623,13 @@ int ndo2db_stmt_save_customvariable_status(ndo2db_idi *idi, unsigned long o_id,
 #define PREPARE_INSERT_UPDATE(s, t) \
 	PREPARE_INSERT_UPDATE_W_PARAMS(s, t, params)
 
-
-/**
- * Prepares and binds a SELECT statement for fetching object ids.
- * @param idi Input data and DB connection info.
- * @param dbuf Dynamic buffer for printing the statement template.
- * @param stmt_id Statement id to prepare.
- * @param params Column name and input datatype to bind for each parameter.
- * @param np Number of parameters.
- * @param results Column name and output datatype to bind for each result.
- * @param nr Number of results.
- * @param and_where Additional WHERE ... AND condition
- * @return NDO_OK on success, an error code otherwise, usually NDO_ERROR.
- * @post ndo2db_stmts[stmt_id].handle is the statment handle.
- * @post ndo2db_stmts[stmt_id].binds is the array of parameter bindings.
- * @post ndo2db_stmts[stmt_id].results is the array of result bindings.
- */
-static int ndo2db_stmt_prepare_obj_id_select(
-		ndo2db_idi *idi,
-		ndo_dbuf *dbuf,
-		const enum ndo2db_stmt_id stmt_id,
-		const struct ndo2db_stmt_bind *params,
-		const size_t np,
-		const struct ndo2db_stmt_bind *results,
-		const size_t nr,
-		const char *and_where
-) {
-	size_t i;
-
-	/* Print our full template. */
-	ndo_dbuf_reset(dbuf);
-	CHK_OK(ndo_dbuf_strcat(dbuf, "SELECT "));
-
-	for (i = 0; i < nr; ++i) {
-		CHK_OK(ndo_dbuf_printf(dbuf, (i ? ",%s" : "%s"), results[i].column));
-	}
-
-	CHK_OK(ndo_dbuf_printf(dbuf, " FROM %s WHERE instance_id=%lu",
-			ndo2db_db_tablenames[NDO2DB_DBTABLE_OBJECTS], idi->dbinfo.instance_id));
-
-	if (and_where && *and_where) {
-		CHK_OK(ndo_dbuf_printf(dbuf, " AND %s", and_where));
-	}
-
-	/* Prepare our statement, and bind its parameters and results. */
-	return ndo2db_stmt_prepare_and_bind(idi, stmt_id,
-			dbuf->buf, dbuf->used_size, params, np, results, nr);
-}
+/** Prints a template from table and instance ids, then prepare and bind. */
+#define CHK_OK_PRINT_PREPARE_AND_BIND(fmt, s, t, p, np, r, nr) \
+	ndo_dbuf_reset(dbuf); \
+	CHK_OK(ndo_dbuf_printf(dbuf, fmt, \
+			ndo2db_db_tablenames[NDO2DB_DBTABLE_ ## t], idi->dbinfo.instance_id)); \
+	CHK_OK(ndo2db_stmt_prepare_and_bind(idi, NDO2DB_STMT_ ## s, \
+			dbuf->buf, dbuf->used_size, p, np, r, nr))
 
 
 static int ndo2db_stmt_init_obj(ndo2db_idi *idi, ndo_dbuf *dbuf) {
@@ -2892,79 +3642,437 @@ static int ndo2db_stmt_init_obj(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 		INIT_PARAM("name1", SHORT_STRING),
 		INIT_PARAM_F("name2", SHORT_STRING, BIND_MAYBE_NULL),
 	};
-	const struct ndo2db_stmt_bind *params = binding_info + 1;
-	const struct ndo2db_stmt_bind *results = binding_info + 0;
+	const struct ndo2db_stmt_bind *params = (binding_info + 1);
+	const struct ndo2db_stmt_bind *results = (binding_info + 0);
+	const char *table_name = ndo2db_db_tablenames[NDO2DB_DBTABLE_OBJECTS];
 
 	/* Our SELECT for name2 IS NOT NULL cases.
-	 * params: objecttype_id, name1, name2
-	 * result: object_id
+	 * params: objecttype_id, name1, name2; result: object_id
 	 * The BINARY operator is a MySQL special for case sensitivity. */
-	CHK_OK(ndo2db_stmt_prepare_obj_id_select(idi, dbuf,
-			NDO2DB_STMT_GET_OBJ_ID, params, 3, results, 1,
+	CHK_OK(ndo2db_stmt_prepare_select(idi, dbuf,
+			NDO2DB_STMT_GET_OBJ_ID, table_name, params, 3, results, 1,
 			"objecttype_id=? AND BINARY name1=? AND BINARY name2=?"));
 
 	/* Our SELECT for name2 IS NULL cases.
-	* params: objecttype_id, name1
-	* result: object_id */
-	CHK_OK(ndo2db_stmt_prepare_obj_id_select(idi, dbuf,
-			NDO2DB_STMT_GET_OBJ_ID_N2_NULL, params, 2, results, 1,
+	* params: objecttype_id, name1; result: object_id */
+	CHK_OK(ndo2db_stmt_prepare_select(idi, dbuf,
+			NDO2DB_STMT_GET_OBJ_ID_N2_NULL, table_name, params, 2, results, 1,
 			"objecttype_id=? AND BINARY name1=? AND name2 IS NULL"));
 
 	/* Our object id INSERT.
-	 * params: objecttype_id, name1, name2
-	 * no results */
+	 * params: objecttype_id, name1, name2; no results */
 	CHK_OK(ndo2db_stmt_prepare_insert(idi, dbuf,
 			NDO2DB_STMT_GET_OBJ_ID_INSERT, NDO2DB_DBTABLE_OBJECTS, params, 3, 0));
 
 	/* Our SELECT for loading all objects.
-	 * no params
-	 * results: object_id, objecttype_id, name1, name2 */
-	CHK_OK(ndo2db_stmt_prepare_obj_id_select(idi, dbuf,
-			NDO2DB_STMT_GET_OBJ_IDS, params, 0, results, 4, NULL));
+	 * no params; results: object_id, objecttype_id, name1, name2 */
+	CHK_OK(ndo2db_stmt_prepare_select(idi, dbuf,
+			NDO2DB_STMT_GET_OBJ_IDS, table_name, NULL, 0, results, 4, NULL));
 
 	/* Our UPDATE for marking an object active.
-	 * params: object_id, objecttype_id
-	 * no results */
-	ndo_dbuf_reset(dbuf);
-	CHK_OK(ndo_dbuf_printf(dbuf,
+	 * params: object_id, objecttype_id; no results */
+	CHK_OK_PRINT_PREPARE_AND_BIND(
 			"UPDATE %s SET is_active=1 WHERE instance_id=%lu "
 			"AND object_id=? AND objecttype_id=?",
-			ndo2db_db_tablenames[NDO2DB_DBTABLE_OBJECTS], idi->dbinfo.instance_id));
-
-	CHK_OK(ndo2db_stmt_prepare_and_bind(idi,
-			NDO2DB_STMT_SET_OBJ_ACTIVE,
-			dbuf->buf, dbuf->used_size, binding_info + 0, 2, NULL, 0));
+			SET_OBJ_ACTIVE, OBJECTS, (binding_info + 0), 2, NULL, 0);
 
 	return NDO_OK;
 }
 
 
-static int ndo2db_stmt_init_servicecheck(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+static int ndo2db_stmt_init_log(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 
 	static const struct ndo2db_stmt_bind params[] = {
-		INIT_PARAM("service_object_id", U32),
-		INIT_PARAM_F("command_object_id", U32, BIND_ONLY_INS),
-		INIT_PARAM("start_time", FROM_UNIXTIME),
-		INIT_PARAM("start_time_usec", I32),
-		INIT_PARAM("end_time", FROM_UNIXTIME),
-		INIT_PARAM("end_time_usec", I32),
-		INIT_PARAM_BI("check_type", I8, NDO_DATA_CHECKTYPE),
-		INIT_PARAM_BI("current_check_attempt", I16, NDO_DATA_CURRENTCHECKATTEMPT),
-		INIT_PARAM_BI("max_check_attempts", I16, NDO_DATA_MAXCHECKATTEMPTS),
-		INIT_PARAM_BI("state", I8, NDO_DATA_STATE),
-		INIT_PARAM_BI("state_type", I8, NDO_DATA_STATETYPE),
+		INIT_PARAM_BI("logentry_time", FROM_UNIXTIME, NDO_DATA_LOGENTRYTIME),
+		INIT_PARAM_BI("logentry_data", SHORT_STRING, NDO_DATA_LOGENTRY),
+		INIT_PARAM_BI("logentry_type", I32, NDO_DATA_LOGENTRYTYPE),
+		INIT_PARAM("entry_time", FROM_UNIXTIME),
+		INIT_PARAM("entry_time_usec", I32),
+		INIT_PARAM("realtime_data", I8),
+		INIT_PARAM("inferred_data_extracted", I8)
+	};
+	static const struct ndo2db_stmt_bind find_params[] = {
+		INIT_PARAM("logentry_time", FROM_UNIXTIME),
+		INIT_PARAM("logentry_data", SHORT_STRING),
+	};
+	static const struct ndo2db_stmt_bind results[] = {
+		INIT_PARAM("COUNT(*)", I32)
+	};
+
+	/* Live and archived and log data INSERT.
+	 * params: logentry_time, logentry_data, logentry_type,
+	 * entry_time, entry_time_usec (0 for archived data),
+	 * realtime_data (0/1), inferred_data_extracted (0/1); no results */
+	CHK_OK(PREPARE_INSERT(SAVE_LOG, LOGENTRIES));
+
+	/* SELECT to check for duplicate log entries.
+	 * params: logentry_time, logentry_data; result: COUNT(*) */
+	return ndo2db_stmt_prepare_select(idi, dbuf,
+			NDO2DB_STMT_FIND_LOG, ndo2db_db_tablenames[NDO2DB_DBTABLE_LOGENTRIES],
+			find_params, 2, results, 1,
+			"logentry_time=FROM_UNIXTIME(?) AND logentry_data=?");
+}
+
+
+static int ndo2db_stmt_init_processdata(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind process_params[] = {
+		INIT_PARAM("event_type", I32),
+		INIT_PARAM("event_time", FROM_UNIXTIME),
+		INIT_PARAM("event_time_usec", I32),
+		INIT_PARAM_BI("process_id", I32, NDO_DATA_PROCESSID),
+		INIT_PARAM_BI("program_name", SHORT_STRING, NDO_DATA_PROGRAMNAME),
+		INIT_PARAM_BI("program_version", SHORT_STRING, NDO_DATA_PROGRAMVERSION),
+		INIT_PARAM_BI("program_date", SHORT_STRING, NDO_DATA_PROGRAMDATE)
+	};
+	static const struct ndo2db_stmt_bind status_params[] = {
+		INIT_PARAM("program_end_time", FROM_UNIXTIME)
+	};
+
+	CHK_OK(PREPARE_INSERT_W_PARAMS(
+			HANDLE_PROCESSDATA, PROCESSEVENTS, process_params));
+
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"UPDATE %s SET program_end_time=?, "
+			"is_currently_running=0 WHERE instance_id=%lu",
+			UPDATE_PROCESSDATA_PROGRAMSTATUS, PROGRAMSTATUS,
+			status_params, 1, NULL, 0);
+
+	return NDO_OK;
+}
+
+
+static int ndo2db_stmt_init_timedevent(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	#define INIT_PARAMS_TIMEDEVENT(params_name, sec_column, usec_column) \
+		static const struct ndo2db_stmt_bind params_name[] = { \
+			INIT_PARAM(sec_column, FROM_UNIXTIME), \
+			INIT_PARAM(usec_column, I32), \
+			INIT_PARAM("object_id", U32), \
+			INIT_PARAM("event_type", I16), \
+			INIT_PARAM_BI("scheduled_time", FROM_UNIXTIME, NDO_DATA_RUNTIME), \
+			INIT_PARAM_BI("recurring_event", I8, NDO_DATA_RECURRING) \
+		}
+	INIT_PARAMS_TIMEDEVENT(add_params, "queued_time", "queued_time_usec");
+	INIT_PARAMS_TIMEDEVENT(execute_params, "event_time", "event_time_usec");
+	INIT_PARAMS_TIMEDEVENT(remove_params, "deletion_time", "deletion_time_usec");
+	#undef INIT_PARAMS_TIMEDEVENT
+	static const struct ndo2db_stmt_bind queue_rm_params[] = {
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM("event_type", I16),
+		INIT_PARAM_BI("scheduled_time", FROM_UNIXTIME, NDO_DATA_RUNTIME),
+		INIT_PARAM_BI("recurring_event", I8, NDO_DATA_RECURRING)
+	};
+	const struct ndo2db_stmt_bind *queue_clean_params = queue_rm_params + 2;
+
+	/* Iff NDO2DB_SAVE_TIMEDEVENTS_HISTORY: INSERT/UPDATE added events. */
+	CHK_OK(PREPARE_INSERT_UPDATE_W_PARAMS(
+			TIMEDEVENT_ADD, TIMEDEVENTS, add_params));
+
+	/* Iff NDO2DB_SAVE_TIMEDEVENTS_HISTORY: INSERT/UPDATE executed events. */
+	CHK_OK(PREPARE_INSERT_UPDATE_W_PARAMS(
+			TIMEDEVENT_EXECUTE, TIMEDEVENTS, execute_params));
+
+	/* Iff NDO2DB_SAVE_TIMEDEVENTS_HISTORY: UPDATE removed events.*/
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"UPDATE %s SET deletion_time=FROM_UNIXTIME(?), deletion_time_usec=? "
+			"WHERE instance_id=%lu AND object_id=? AND event_type=? "
+			"AND scheduled_time=FROM_UNIXTIME(?) AND recurring_event=?",
+			TIMEDEVENT_REMOVE, TIMEDEVENTS, remove_params, 6, NULL, 0);
+
+
+	/* DELETE old queued events on connection startup, and check execution. */
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"DELETE FROM %s WHERE instance_id=%lu "
+			"AND scheduled_time<FROM_UNIXTIME(?)",
+			TIMEDEVENTQUEUE_CLEAN, TIMEDEVENTQUEUE, queue_clean_params, 1, NULL, 0);
+
+	/* INSERT enqueued events. */
+	CHK_OK(PREPARE_INSERT_W_PARAMS(
+			TIMEDEVENTQUEUE_ADD, TIMEDEVENTQUEUE, add_params));
+
+	/* DELETE removed/executed queued events. */
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"DELETE FROM %s "
+			"WHERE instance_id=%lu AND object_id=? AND event_type=? "
+			"AND scheduled_time=FROM_UNIXTIME(?) AND recurring_event=?",
+			TIMEDEVENTQUEUE_REMOVE, TIMEDEVENTQUEUE, queue_rm_params, 4, NULL, 0);
+
+	return NDO_OK;
+}
+
+
+static int ndo2db_stmt_init_systemcommand(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM_BI("start_time", TV_SEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("start_time_usec", TV_USEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("end_time", TV_SEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("end_time_usec", TV_USEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("command_line", SHORT_STRING, NDO_DATA_COMMANDLINE),
 		INIT_PARAM_BI("timeout", I8, NDO_DATA_TIMEOUT),
 		INIT_PARAM_BI("early_timeout", I8, NDO_DATA_EARLYTIMEOUT),
 		INIT_PARAM_BI("execution_time", DOUBLE, NDO_DATA_EXECUTIONTIME),
-		INIT_PARAM_BI("latency", DOUBLE, NDO_DATA_LATENCY),
 		INIT_PARAM_BI("return_code", I16, NDO_DATA_RETURNCODE),
 		INIT_PARAM_BI("output", SHORT_STRING, NDO_DATA_OUTPUT),
-		INIT_PARAM_BI("long_output", LONG_STRING, NDO_DATA_LONGOUTPUT),
-		INIT_PARAM_BI("perfdata", LONG_STRING, NDO_DATA_PERFDATA),
-		INIT_PARAM_BIF("command_args", SHORT_STRING, NDO_DATA_COMMANDARGS, BIND_ONLY_INS),
-		INIT_PARAM_BIF("command_line", SHORT_STRING, NDO_DATA_COMMANDLINE, BIND_ONLY_INS)
+		INIT_PARAM_BI("long_output", LONG_STRING, NDO_DATA_LONGOUTPUT)
 	};
-	return PREPARE_INSERT_UPDATE(HANDLE_SERVICECHECK, SERVICECHECKS);
+	return PREPARE_INSERT_UPDATE(HANDLE_SYSTEMCOMMAND, SYSTEMCOMMANDS);
+}
+
+
+static int ndo2db_stmt_init_eventhandler(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("eventhandler_type", I8),
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM("command_object_id", U32),
+		INIT_PARAM_BI("start_time", TV_SEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("start_time_usec", TV_USEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("end_time", TV_SEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("end_time_usec", TV_USEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("state", I8, NDO_DATA_STATE),
+		INIT_PARAM_BI("state_type", I8, NDO_DATA_STATETYPE),
+		INIT_PARAM_BI("command_args", SHORT_STRING, NDO_DATA_COMMANDARGS),
+		INIT_PARAM_BI("command_line", SHORT_STRING, NDO_DATA_COMMANDLINE),
+		INIT_PARAM_BI("timeout", I8, NDO_DATA_TIMEOUT),
+		INIT_PARAM_BI("early_timeout", I8, NDO_DATA_EARLYTIMEOUT),
+		INIT_PARAM_BI("execution_time", DOUBLE, NDO_DATA_EXECUTIONTIME),
+		INIT_PARAM_BI("return_code", I16, NDO_DATA_RETURNCODE),
+		INIT_PARAM_BI("output", SHORT_STRING, NDO_DATA_OUTPUT),
+		INIT_PARAM_BI("long_output", LONG_STRING, NDO_DATA_LONGOUTPUT)
+	};
+	return PREPARE_INSERT_UPDATE(HANDLE_EVENTHANDLER, EVENTHANDLERS);
+}
+
+
+static int ndo2db_stmt_init_notification(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("notification_type", I8),
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM_BI("start_time", TV_SEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("start_time_usec", TV_USEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("end_time", TV_SEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("end_time_usec", TV_USEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("notification_reason", I8, NDO_DATA_NOTIFICATIONREASON),
+		INIT_PARAM_BI("state", I8, NDO_DATA_STATE),
+		INIT_PARAM_BI("output", SHORT_STRING, NDO_DATA_OUTPUT),
+		INIT_PARAM_BI("long_output", LONG_STRING, NDO_DATA_LONGOUTPUT),
+		INIT_PARAM_BI("escalated", I8, NDO_DATA_ESCALATED),
+		INIT_PARAM_BI("contacts_notified", I8, NDO_DATA_CONTACTSNOTIFIED)
+	};
+	return PREPARE_INSERT_UPDATE(HANDLE_NOTIFICATION, NOTIFICATIONS);
+}
+
+
+static int ndo2db_stmt_init_contactnotification(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("notification_id", U32),
+		INIT_PARAM("contact_object_id", U32),
+		INIT_PARAM_BI("start_time", TV_SEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("start_time_usec", TV_USEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("end_time", TV_SEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("end_time_usec", TV_USEC, NDO_DATA_ENDTIME),
+	};
+	return PREPARE_INSERT_UPDATE(
+			HANDLE_CONTACTNOTIFICATION, CONTACTNOTIFICATIONS);
+}
+
+
+static int ndo2db_stmt_init_contactnotificationmethod(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("contactnotification_id", U32),
+		INIT_PARAM("command_object_id", U32),
+		INIT_PARAM_BI("start_time", TV_SEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("start_time_usec", TV_USEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("end_time", TV_SEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("end_time_usec", TV_USEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("command_args", SHORT_STRING, NDO_DATA_COMMANDARGS)
+	};
+	return PREPARE_INSERT_UPDATE(
+			HANDLE_CONTACTNOTIFICATIONMETHOD, CONTACTNOTIFICATIONMETHODS);
+}
+
+
+static int ndo2db_stmt_init_comment(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind add_params[] = {
+		INIT_PARAM_F("entry_time", FROM_UNIXTIME, BIND_ONLY_INS),
+		INIT_PARAM_F("entry_time_usec", I32, BIND_ONLY_INS),
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM("comment_type", I8),
+		INIT_PARAM_BI("comment_time", FROM_UNIXTIME, NDO_DATA_ENTRYTIME),
+		INIT_PARAM_BI("internal_comment_id", U32, NDO_DATA_COMMENTID),
+		INIT_PARAM_BI("entry_type", I8, NDO_DATA_ENTRYTYPE),
+		INIT_PARAM_BI("author_name", SHORT_STRING, NDO_DATA_AUTHORNAME),
+		INIT_PARAM_BI("comment_data", SHORT_STRING, NDO_DATA_COMMENT),
+		INIT_PARAM_BI("is_persistent", I8, NDO_DATA_PERSISTENT),
+		INIT_PARAM_BI("comment_source", I8, NDO_DATA_SOURCE),
+		INIT_PARAM_BI("expires", I8, NDO_DATA_EXPIRES),
+		INIT_PARAM_BI("expiration_time", FROM_UNIXTIME, NDO_DATA_EXPIRATIONTIME)
+	};
+	static const struct ndo2db_stmt_bind delete_params[] = {
+		INIT_PARAM("deletion_time", FROM_UNIXTIME),
+		INIT_PARAM("deletion_time_usec", I32),
+		INIT_PARAM_BI("comment_time", FROM_UNIXTIME, NDO_DATA_ENTRYTIME),
+		INIT_PARAM_BI("internal_comment_id", U32, NDO_DATA_COMMENTID)
+	};
+
+	CHK_OK(PREPARE_INSERT_UPDATE_W_PARAMS(
+			COMMENTHISTORY_ADD, COMMENTHISTORY, add_params));
+
+	CHK_OK(PREPARE_INSERT_UPDATE_W_PARAMS(
+			COMMENT_ADD, COMMENTS, add_params));
+
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"UPDATE %s SET deletion_time=FROM_UNIXTIME(?), deletion_time_usec=? "
+			"WHERE instance_id=%lu "
+			"AND comment_time=FROM_UNIXTIME(?) AND internal_comment_id=?",
+			COMMENTHISTORY_DELETE, COMMENTHISTORY, delete_params, 4, NULL, 0);
+
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"DELETE FROM %s WHERE instance_id=%lu "
+			"AND comment_time=FROM_UNIXTIME(?) AND internal_comment_id=?",
+			COMMENT_DELETE, COMMENTS, (delete_params + 2), 2, NULL, 0);
+
+	return NDO_OK;
+}
+
+
+static int ndo2db_stmt_init_downtime(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind add_params[] = {
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM("downtime_type", I8),
+		INIT_PARAM_BI("author_name", SHORT_STRING, NDO_DATA_AUTHORNAME),
+		INIT_PARAM_BI("comment_data", SHORT_STRING, NDO_DATA_COMMENT),
+		INIT_PARAM_BI("internal_downtime_id", U32, NDO_DATA_DOWNTIMEID),
+		INIT_PARAM_BI("triggered_by_id", U32, NDO_DATA_TRIGGEREDBY),
+		INIT_PARAM_BI("is_fixed", I8, NDO_DATA_FIXED),
+		INIT_PARAM_BI("duration", U32, NDO_DATA_DURATION),
+		INIT_PARAM_BI("entry_time", FROM_UNIXTIME, NDO_DATA_ENTRYTIME),
+		INIT_PARAM_BI("scheduled_start_time", FROM_UNIXTIME, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("scheduled_end_time", FROM_UNIXTIME, NDO_DATA_ENDTIME)
+	};
+	static const struct ndo2db_stmt_bind start_params[] = {
+		INIT_PARAM("actual_start_time", FROM_UNIXTIME),
+		INIT_PARAM("actual_start_time_usec", I32),
+		INIT_PARAM("was_started", I8), // Constant 1...
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM("downtime_type", I8),
+		INIT_PARAM_BI("entry_time", FROM_UNIXTIME, NDO_DATA_ENTRYTIME),
+		INIT_PARAM_BI("scheduled_start_time", FROM_UNIXTIME, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("scheduled_end_time", FROM_UNIXTIME, NDO_DATA_ENDTIME)
+	};
+	static const struct ndo2db_stmt_bind stop_params[] = {
+		INIT_PARAM("actual_end_time", FROM_UNIXTIME),
+		INIT_PARAM("actual_end_time_usec", I32),
+		INIT_PARAM("was_cancelled", I8),
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM("downtime_type", I8),
+		INIT_PARAM_BI("entry_time", FROM_UNIXTIME, NDO_DATA_ENTRYTIME),
+		INIT_PARAM_BI("scheduled_start_time", FROM_UNIXTIME, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("scheduled_end_time", FROM_UNIXTIME, NDO_DATA_ENDTIME)
+	};
+
+	CHK_OK(PREPARE_INSERT_UPDATE_W_PARAMS(
+			DOWNTIMEHISTORY_ADD, DOWNTIMEHISTORY, add_params));
+
+	CHK_OK(PREPARE_INSERT_UPDATE_W_PARAMS(
+			DOWNTIME_ADD, SCHEDULEDDOWNTIME, add_params));
+
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"UPDATE %s SET actual_start_time=FROM_UNIXTIME(?), "
+			"actual_start_time_usec=?, was_started=? WHERE instance_id=%lu "
+			"AND object_id=? "
+			"AND entry_time=FROM_UNIXTIME(?) "
+			"AND downtime_type=? "
+			"AND scheduled_start_time=FROM_UNIXTIME(?) "
+			"AND scheduled_end_time=FROM_UNIXTIME(?)",
+			DOWNTIMEHISTORY_START, DOWNTIMEHISTORY, start_params, 8, NULL, 0);
+
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"UPDATE %s SET actual_start_time=FROM_UNIXTIME(?), "
+			"actual_start_time_usec=?, was_started=? WHERE instance_id=%lu "
+			"AND object_id=? "
+			"AND entry_time=FROM_UNIXTIME(?) "
+			"AND downtime_type=? "
+			"AND scheduled_start_time=FROM_UNIXTIME(?) "
+			"AND scheduled_end_time=FROM_UNIXTIME(?)",
+			DOWNTIME_START, SCHEDULEDDOWNTIME, start_params, 8, NULL, 0);
+
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"UPDATE %s SET actual_end_time=FROM_UNIXTIME(?), actual_end_time_usec=?, "
+			"was_cancelled=? WHERE instance_id=%lu "
+			"AND object_id=? "
+			"AND entry_time=FROM_UNIXTIME(?) "
+			"AND downtime_type=? "
+			"AND scheduled_start_time=FROM_UNIXTIME(?) "
+			"AND scheduled_end_time=FROM_UNIXTIME(?)",
+			DOWNTIMEHISTORY_STOP, DOWNTIMEHISTORY, stop_params, 8, NULL, 0);
+
+	CHK_OK_PRINT_PREPARE_AND_BIND(
+			"DELETE FROM %s WHERE instance_id=%lu "
+			"AND object_id=? "
+			"AND entry_time=FROM_UNIXTIME(?) "
+			"AND downtime_type=? "
+			"AND scheduled_start_time=FROM_UNIXTIME(?) "
+			"AND scheduled_end_time=FROM_UNIXTIME(?)",
+			DOWNTIME_STOP, SCHEDULEDDOWNTIME, (stop_params + 3), 5, NULL, 0);
+
+	return NDO_OK;
+}
+
+
+static int ndo2db_stmt_init_flapping(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("event_time", FROM_UNIXTIME),
+		INIT_PARAM("event_time_usec", I32),
+		INIT_PARAM("event_type", I8),
+		INIT_PARAM("reason_type", I8),
+		INIT_PARAM("flapping_type", I8),
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM_BI("percent_state_change", DOUBLE, NDO_DATA_PERCENTSTATECHANGE),
+		INIT_PARAM_BI("low_threshold", DOUBLE, NDO_DATA_LOWTHRESHOLD),
+		INIT_PARAM_BI("high_threshold", DOUBLE, NDO_DATA_HIGHTHRESHOLD),
+		INIT_PARAM_BI("comment_time", FROM_UNIXTIME, NDO_DATA_COMMENTTIME),
+		INIT_PARAM_BI("internal_comment_id", U32, NDO_DATA_COMMENTID)
+	};
+	return PREPARE_INSERT(HANDLE_FLAPPING, FLAPPINGHISTORY);
+}
+
+
+static int ndo2db_stmt_init_programstatus(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("status_update_time", FROM_UNIXTIME),
+		INIT_PARAM("is_currently_running", I8), // Constant 1...
+		INIT_PARAM_BI("program_start_time", FROM_UNIXTIME, NDO_DATA_PROGRAMSTARTTIME),
+		INIT_PARAM_BI("process_id", I32, NDO_DATA_PROCESSID),
+		INIT_PARAM_BI("daemon_mode", I8, NDO_DATA_DAEMONMODE),
+		INIT_PARAM_BI("last_command_check", FROM_UNIXTIME, NDO_DATA_LASTCOMMANDCHECK),
+		INIT_PARAM_BI("last_log_rotation", FROM_UNIXTIME, NDO_DATA_LASTLOGROTATION),
+		INIT_PARAM_BI("notifications_enabled", I8, NDO_DATA_NOTIFICATIONSENABLED),
+		INIT_PARAM_BI("active_service_checks_enabled", I8, NDO_DATA_ACTIVESERVICECHECKSENABLED),
+		INIT_PARAM_BI("passive_service_checks_enabled", I8, NDO_DATA_PASSIVESERVICECHECKSENABLED),
+		INIT_PARAM_BI("active_host_checks_enabled", I8, NDO_DATA_ACTIVEHOSTCHECKSENABLED),
+		INIT_PARAM_BI("passive_host_checks_enabled", I8, NDO_DATA_PASSIVEHOSTCHECKSENABLED),
+		INIT_PARAM_BI("event_handlers_enabled", I8, NDO_DATA_EVENTHANDLERSENABLED),
+		INIT_PARAM_BI("flap_detection_enabled", I8, NDO_DATA_FLAPDETECTIONENABLED),
+		INIT_PARAM_BI("failure_prediction_enabled", I8, NDO_DATA_FAILUREPREDICTIONENABLED),
+		INIT_PARAM_BI("process_performance_data", I8, NDO_DATA_PROCESSPERFORMANCEDATA),
+		INIT_PARAM_BI("obsess_over_hosts", I8, NDO_DATA_OBSESSOVERHOSTS),
+		INIT_PARAM_BI("obsess_over_services", I8, NDO_DATA_OBSESSOVERSERVICES),
+		INIT_PARAM_BI("modified_host_attributes", I32, NDO_DATA_MODIFIEDHOSTATTRIBUTES),
+		INIT_PARAM_BI("modified_service_attributes", I32, NDO_DATA_MODIFIEDSERVICEATTRIBUTES),
+		INIT_PARAM_BI("global_host_event_handler", SHORT_STRING, NDO_DATA_GLOBALHOSTEVENTHANDLER),
+		INIT_PARAM_BI("global_service_event_handler", SHORT_STRING, NDO_DATA_GLOBALSERVICEEVENTHANDLER)
+	};
+	return PREPARE_INSERT_UPDATE(HANDLE_PROGRAMSTATUS, PROGRAMSTATUS);
 }
 
 
@@ -2973,11 +4081,11 @@ static int ndo2db_stmt_init_hostcheck(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 	static const struct ndo2db_stmt_bind params[] = {
 		INIT_PARAM("host_object_id", U32),
 		INIT_PARAM_F("command_object_id", U32, BIND_ONLY_INS),
-		INIT_PARAM("start_time", FROM_UNIXTIME),
-		INIT_PARAM("start_time_usec", I32),
-		INIT_PARAM("end_time", FROM_UNIXTIME),
-		INIT_PARAM("end_time_usec", I32),
 		INIT_PARAM("is_raw_check", I8),
+		INIT_PARAM_BI("start_time", TV_SEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("start_time_usec", TV_USEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("end_time", TV_SEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("end_time_usec", TV_USEC, NDO_DATA_ENDTIME),
 		INIT_PARAM_BI("check_type", I8, NDO_DATA_CHECKTYPE),
 		INIT_PARAM_BI("current_check_attempt", I16, NDO_DATA_CURRENTCHECKATTEMPT),
 		INIT_PARAM_BI("max_check_attempts", I16, NDO_DATA_MAXCHECKATTEMPTS),
@@ -2995,6 +4103,35 @@ static int ndo2db_stmt_init_hostcheck(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 		INIT_PARAM_BIF("command_line", SHORT_STRING, NDO_DATA_COMMANDLINE, BIND_ONLY_INS)
 	};
 	return PREPARE_INSERT_UPDATE(HANDLE_HOSTCHECK, HOSTCHECKS);
+}
+
+
+static int ndo2db_stmt_init_servicecheck(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("service_object_id", U32),
+		INIT_PARAM_F("command_object_id", U32, BIND_ONLY_INS),
+		INIT_PARAM_BI("start_time", TV_SEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("start_time_usec", TV_USEC, NDO_DATA_STARTTIME),
+		INIT_PARAM_BI("end_time", TV_SEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("end_time_usec", TV_USEC, NDO_DATA_ENDTIME),
+		INIT_PARAM_BI("check_type", I8, NDO_DATA_CHECKTYPE),
+		INIT_PARAM_BI("current_check_attempt", I16, NDO_DATA_CURRENTCHECKATTEMPT),
+		INIT_PARAM_BI("max_check_attempts", I16, NDO_DATA_MAXCHECKATTEMPTS),
+		INIT_PARAM_BI("state", I8, NDO_DATA_STATE),
+		INIT_PARAM_BI("state_type", I8, NDO_DATA_STATETYPE),
+		INIT_PARAM_BI("timeout", I8, NDO_DATA_TIMEOUT),
+		INIT_PARAM_BI("early_timeout", I8, NDO_DATA_EARLYTIMEOUT),
+		INIT_PARAM_BI("execution_time", DOUBLE, NDO_DATA_EXECUTIONTIME),
+		INIT_PARAM_BI("latency", DOUBLE, NDO_DATA_LATENCY),
+		INIT_PARAM_BI("return_code", I16, NDO_DATA_RETURNCODE),
+		INIT_PARAM_BI("output", SHORT_STRING, NDO_DATA_OUTPUT),
+		INIT_PARAM_BI("long_output", LONG_STRING, NDO_DATA_LONGOUTPUT),
+		INIT_PARAM_BI("perfdata", LONG_STRING, NDO_DATA_PERFDATA),
+		INIT_PARAM_BIF("command_args", SHORT_STRING, NDO_DATA_COMMANDARGS, BIND_ONLY_INS),
+		INIT_PARAM_BIF("command_line", SHORT_STRING, NDO_DATA_COMMANDLINE, BIND_ONLY_INS)
+	};
+	return PREPARE_INSERT_UPDATE(HANDLE_SERVICECHECK, SERVICECHECKS);
 }
 
 
@@ -3105,24 +4242,90 @@ static int ndo2db_stmt_init_servicestatus(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 }
 
 
-static int ndo2db_stmt_init_configfile(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+static int ndo2db_stmt_init_contactstatus(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 
 	static const struct ndo2db_stmt_bind params[] = {
-		INIT_PARAM("configfile_type", I16),
-		INIT_PARAM_BI("configfile_path", SHORT_STRING, NDO_DATA_CONFIGFILENAME)
+		INIT_PARAM("contact_object_id", U32),
+		INIT_PARAM("status_update_time", FROM_UNIXTIME),
+		INIT_PARAM_BI("host_notifications_enabled", I8, NDO_DATA_HOSTNOTIFICATIONSENABLED),
+		INIT_PARAM_BI("service_notifications_enabled", I8, NDO_DATA_SERVICENOTIFICATIONSENABLED),
+		INIT_PARAM_BI("last_host_notification", FROM_UNIXTIME, NDO_DATA_LASTHOSTNOTIFICATION),
+		INIT_PARAM_BI("last_service_notification", FROM_UNIXTIME, NDO_DATA_LASTSERVICENOTIFICATION),
+		INIT_PARAM_BI("modified_attributes", I32, NDO_DATA_MODIFIEDCONTACTATTRIBUTES),
+		INIT_PARAM_BI("modified_host_attributes", I32, NDO_DATA_MODIFIEDHOSTATTRIBUTES),
+		INIT_PARAM_BI("modified_service_attributes", I32, NDO_DATA_MODIFIEDSERVICEATTRIBUTES)
 	};
-	return PREPARE_INSERT_UPDATE(HANDLE_CONFIGFILE, CONFIGFILES);
+	return PREPARE_INSERT_UPDATE(HANDLE_CONTACTSTATUS, CONTACTSTATUS);
 }
 
 
-static int ndo2db_stmt_init_configfilevariable(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+static int ndo2db_stmt_init_externalcommand(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 
 	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM_BI("entry_time", FROM_UNIXTIME, NDO_DATA_ENTRYTIME),
+		INIT_PARAM_BI("command_type", I8, NDO_DATA_COMMANDTYPE),
+		INIT_PARAM_BI("command_name", SHORT_STRING, NDO_DATA_COMMANDSTRING),
+		INIT_PARAM_BI("command_args", SHORT_STRING, NDO_DATA_COMMANDARGS)
+	};
+	return PREPARE_INSERT(HANDLE_EXTERNALCOMMAND, EXTERNALCOMMANDS);
+}
+
+
+static int ndo2db_stmt_init_acknowledgement(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("entry_time", FROM_UNIXTIME),
+		INIT_PARAM("entry_time_usec", I32),
+		INIT_PARAM("acknowledgement_type", I8),
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM_BI("state", I8, NDO_DATA_STATE),
+		INIT_PARAM_BI("author_name", SHORT_STRING, NDO_DATA_AUTHORNAME),
+		INIT_PARAM_BI("comment_data", SHORT_STRING, NDO_DATA_COMMENT),
+		INIT_PARAM_BI("is_sticky", I8, NDO_DATA_STICKY),
+		INIT_PARAM_BI("persistent_comment", I8, NDO_DATA_PERSISTENT),
+		INIT_PARAM_BI("notify_contacts", I8, NDO_DATA_NOTIFYCONTACTS)
+	};
+	return PREPARE_INSERT_UPDATE(HANDLE_ACKNOWLEDGEMENT, ACKNOWLEDGEMENTS);
+}
+
+
+static int ndo2db_stmt_init_statechange(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind params[] = {
+		INIT_PARAM("state_time", FROM_UNIXTIME),
+		INIT_PARAM("state_time_usec", I32),
+		INIT_PARAM("object_id", U32),
+		INIT_PARAM_BI("state", I8, NDO_DATA_STATE),
+		INIT_PARAM_BI("state_type", I8, NDO_DATA_STATETYPE),
+		INIT_PARAM_BI("state_change", I8, NDO_DATA_STATECHANGE),
+		INIT_PARAM_BI("last_state", I8, NDO_DATA_LASTSTATE),
+		INIT_PARAM_BI("last_hard_state", I8, NDO_DATA_LASTHARDSTATE),
+		INIT_PARAM_BI("current_check_attempt", I16, NDO_DATA_CURRENTCHECKATTEMPT),
+		INIT_PARAM_BI("max_check_attempts", I16, NDO_DATA_MAXCHECKATTEMPTS),
+		INIT_PARAM_BI("output", SHORT_STRING, NDO_DATA_OUTPUT),
+		INIT_PARAM_BI("long_output", LONG_STRING, NDO_DATA_LONGOUTPUT)
+	};
+	return PREPARE_INSERT(HANDLE_STATECHANGE, STATEHISTORY);
+}
+
+
+static int ndo2db_stmt_init_configfile(ndo2db_idi *idi, ndo_dbuf *dbuf) {
+
+	static const struct ndo2db_stmt_bind file_params[] = {
+		INIT_PARAM("configfile_type", I16),
+		INIT_PARAM_BI("configfile_path", SHORT_STRING, NDO_DATA_CONFIGFILENAME)
+	};
+	static const struct ndo2db_stmt_bind variable_params[] = {
 		INIT_PARAM("configfile_id", U32),
 		INIT_PARAM("varname", SHORT_STRING),
 		INIT_PARAM("varvalue", SHORT_STRING)
 	};
-	return PREPARE_INSERT(SAVE_CONFIGFILEVARIABLE, CONFIGFILEVARIABLES);
+
+	CHK_OK(PREPARE_INSERT_UPDATE_W_PARAMS(
+			HANDLE_CONFIGFILE, CONFIGFILES, file_params));
+
+	return PREPARE_INSERT_W_PARAMS(
+			SAVE_CONFIGFILEVARIABLE, CONFIGFILEVARIABLES, variable_params);
 }
 
 
@@ -3146,7 +4349,7 @@ static int ndo2db_stmt_init_host(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 		INIT_PARAM("eventhandler_command_args", SHORT_STRING),
 		INIT_PARAM("check_timeperiod_object_id", U32),
 		INIT_PARAM("notification_timeperiod_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("alias", SHORT_STRING, NDO_DATA_HOSTALIAS),
 		INIT_PARAM_BI("display_name", SHORT_STRING, NDO_DATA_DISPLAYNAME),
 		INIT_PARAM_BI("address", SHORT_STRING, NDO_DATA_HOSTADDRESS),
@@ -3232,7 +4435,7 @@ static int ndo2db_stmt_init_hostgroup(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 
 	static const struct ndo2db_stmt_bind group_params[] = {
 		INIT_PARAM("hostgroup_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("alias", SHORT_STRING, NDO_DATA_HOSTGROUPALIAS)
 	};
 	static const struct ndo2db_stmt_bind member_params[] = {
@@ -3261,7 +4464,7 @@ static int ndo2db_stmt_init_service(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 		INIT_PARAM("check_timeperiod_object_id", U32),
 		INIT_PARAM("notification_timeperiod_object_id", U32),
 		INIT_PARAM("service_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("display_name", SHORT_STRING, NDO_DATA_DISPLAYNAME),
 		INIT_PARAM_BI("failure_prediction_options", SHORT_STRING, NDO_DATA_SERVICEFAILUREPREDICTIONOPTIONS),
 		INIT_PARAM_BI("check_interval", DOUBLE, NDO_DATA_SERVICECHECKINTERVAL),
@@ -3342,7 +4545,7 @@ static int ndo2db_stmt_init_servicegroup(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 
 	static const struct ndo2db_stmt_bind group_params[] = {
 		INIT_PARAM("servicegroup_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("alias", SHORT_STRING, NDO_DATA_SERVICEGROUPALIAS)
 	};
 	static const struct ndo2db_stmt_bind member_params[] = {
@@ -3366,7 +4569,7 @@ static int ndo2db_stmt_init_hostdependency(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 		INIT_PARAM("host_object_id", U32),
 		INIT_PARAM("dependent_host_object_id", U32),
 		INIT_PARAM("timeperiod_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("dependency_type", I8, NDO_DATA_DEPENDENCYTYPE),
 		INIT_PARAM_BI("inherits_parent", I8, NDO_DATA_INHERITSPARENT),
 		INIT_PARAM_BI("fail_on_up", I8, NDO_DATA_FAILONUP),
@@ -3383,7 +4586,7 @@ static int ndo2db_stmt_init_servicedependency(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 		INIT_PARAM("service_object_id", U32),
 		INIT_PARAM("dependent_service_object_id", U32),
 		INIT_PARAM("timeperiod_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("dependency_type", I8, NDO_DATA_DEPENDENCYTYPE),
 		INIT_PARAM_BI("inherits_parent", I8, NDO_DATA_INHERITSPARENT),
 		INIT_PARAM_BI("fail_on_ok", I8, NDO_DATA_FAILONOK),
@@ -3400,7 +4603,7 @@ static int ndo2db_stmt_init_hostescalation(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 	static const struct ndo2db_stmt_bind escalation_params[] = {
 		INIT_PARAM("host_object_id", U32),
 		INIT_PARAM("timeperiod_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("first_notification", I16, NDO_DATA_FIRSTNOTIFICATION),
 		INIT_PARAM_BI("last_notification", I16, NDO_DATA_LASTNOTIFICATION),
 		INIT_PARAM_BI("notification_interval", DOUBLE, NDO_DATA_NOTIFICATIONINTERVAL),
@@ -3434,7 +4637,7 @@ static int ndo2db_stmt_init_serviceescalation(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 	static const struct ndo2db_stmt_bind escalation_params[] = {
 		INIT_PARAM("service_object_id", U32),
 		INIT_PARAM("timeperiod_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("first_notification", I16, NDO_DATA_FIRSTNOTIFICATION),
 		INIT_PARAM_BI("last_notification", I16, NDO_DATA_LASTNOTIFICATION),
 		INIT_PARAM_BI("notification_interval", DOUBLE, NDO_DATA_NOTIFICATIONINTERVAL),
@@ -3468,7 +4671,7 @@ static int ndo2db_stmt_init_command(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 
 	static const struct ndo2db_stmt_bind params[] = {
 		INIT_PARAM("object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("command_line", SHORT_STRING, NDO_DATA_COMMANDLINE)
 	};
 
@@ -3480,7 +4683,7 @@ static int ndo2db_stmt_init_timeperiod(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 
 	static const struct ndo2db_stmt_bind params[] = {
 		INIT_PARAM("timeperiod_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("alias", SHORT_STRING, NDO_DATA_TIMEPERIODALIAS)
 	};
 	static const struct ndo2db_stmt_bind range_params[] = {
@@ -3503,7 +4706,7 @@ static int ndo2db_stmt_init_contact(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 		INIT_PARAM("contact_object_id", U32),
 		INIT_PARAM("host_timeperiod_object_id", U32),
 		INIT_PARAM("service_timeperiod_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("alias", SHORT_STRING, NDO_DATA_CONTACTALIAS),
 		INIT_PARAM_BI("email_address", SHORT_STRING, NDO_DATA_EMAILADDRESS),
 		INIT_PARAM_BI("pager_address", SHORT_STRING, NDO_DATA_PAGERADDRESS),
@@ -3551,7 +4754,7 @@ static int ndo2db_stmt_init_contactgroup(ndo2db_idi *idi, ndo_dbuf *dbuf) {
 
 	static const struct ndo2db_stmt_bind params[] = {
 		INIT_PARAM("contactgroup_object_id", U32),
-		INIT_PARAM_F("config_type", I8, BIND_CURRENT_CONFIG_TYPE|BIND_BUFFERED_INPUT),
+		INIT_PARAM_F("config_type", CURRENT_CONFIG, BIND_BUFFERED_INPUT),
 		INIT_PARAM_BI("alias", SHORT_STRING, NDO_DATA_CONTACTGROUPALIAS)
 	};
 	static const struct ndo2db_stmt_bind mamber_params[] = {

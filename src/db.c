@@ -27,7 +27,6 @@
 #include "../include/utils.h"
 #include "../include/protoapi.h"
 #include "../include/ndo2db.h"
-#include "../include/dbhandlers.h"
 #include "../include/dbstatements.h"
 #include "../include/db.h"
 
@@ -436,17 +435,6 @@ char *ndo2db_db_escape_string(ndo2db_idi *idi, char *buf) {
 	newbuf [y] = '\0';
 
 	return newbuf;
-}
-
-
-/* SQL query conversion of time_t format to date/time format */
-char *ndo2db_db_timet_to_sql(ndo2db_idi *idi, time_t t) {
-	char *buf = NULL;
-	(void)idi; /* Unused, don't warn. */
-
-	asprintf(&buf, "FROM_UNIXTIME(%lu)", (unsigned long)t);
-
-	return buf;
 }
 
 

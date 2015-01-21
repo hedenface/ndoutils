@@ -53,20 +53,27 @@ int ndo2db_load_obj_cache(ndo2db_idi *idi);
  * Frees resources allocated for the object cache.
  */
 void ndo2db_free_obj_cache(void);
-/**
- * Sets all objects as inactive in the DB for the current instance.
- */
-int ndo2db_set_all_objs_inactive(ndo2db_idi *idi);
-
-int ndo2db_get_obj_id_with_insert(ndo2db_idi *idi, int type,
-		const char *name1, const char *name2, unsigned long *object_id);
-int ndo2db_set_obj_active(ndo2db_idi *idi, int type, unsigned long id);
 
 
 /* Statement handler functions. These are intended to function as the
  * corresponding ndo2db_handle_* functions. */
-int ndo2db_stmt_handle_servicecheckdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_logentry(ndo2db_idi *idi);
+int ndo2db_stmt_handle_logdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_processdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_timedeventdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_systemcommanddata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_eventhandlerdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_notificationdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_contactnotificationdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_contactnotificationmethoddata(ndo2db_idi *idi);
+
+int ndo2db_stmt_handle_commentdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_downtimedata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_flappingdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_programstatusdata(ndo2db_idi *idi);
+
 int ndo2db_stmt_handle_hostcheckdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_servicecheckdata(ndo2db_idi *idi);
 int ndo2db_stmt_handle_hoststatusdata(ndo2db_idi *idi);
 int ndo2db_stmt_handle_servicestatusdata(ndo2db_idi *idi);
 
@@ -76,8 +83,11 @@ int ndo2db_stmt_handle_adaptiveprogramdata(ndo2db_idi *idi);
 int ndo2db_stmt_handle_adaptivehostdata(ndo2db_idi *idi);
 int ndo2db_stmt_handle_adaptiveservicedata(ndo2db_idi *idi);
 int ndo2db_stmt_handle_adaptivecontactdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_externalcommanddata(ndo2db_idi *idi);
 int ndo2db_stmt_handle_aggregatedstatusdata(ndo2db_idi *idi);
 int ndo2db_stmt_handle_retentiondata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_acknowledgementdata(ndo2db_idi *idi);
+int ndo2db_stmt_handle_statechangedata(ndo2db_idi *idi);
 
 int ndo2db_stmt_handle_configfilevariables(ndo2db_idi *idi, int config_type);
 int ndo2db_stmt_handle_configvariables(ndo2db_idi *idi);
@@ -100,9 +110,5 @@ int ndo2db_stmt_handle_commanddefinition(ndo2db_idi *idi);
 int ndo2db_stmt_handle_timeperiodefinition(ndo2db_idi *idi);
 int ndo2db_stmt_handle_contactdefinition(ndo2db_idi *idi);
 int ndo2db_stmt_handle_contactgroupdefinition(ndo2db_idi *idi);
-
-int ndo2db_stmt_save_customvariables(ndo2db_idi *idi, unsigned long o_id);
-int ndo2db_stmt_save_customvariable_status(ndo2db_idi *idi, unsigned long o_id,
-		unsigned long t);
 
 #endif
